@@ -1,66 +1,4 @@
 services:
-  postfix:
-    build:
-      context: ./docker/postfix
-    container_name: oxmail-postfix
-    restart: unless-stopped
-    networks:
-      - oxmail-internal
-    ports:
-      - "${OXMAIL_SMTP_PORT:-1025}:25"
-      - "587:587"
-    volumes:
-      - mail-data:/var/mail
-      - config-data:/etc/oxmail
-      - dkim-keys:/etc/dkim
-      - postfix-spool:/var/spool/postfix
-    depends_on:
-      rspamd:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  dovecot:
-    build:
-      context: ./docker/dovecot
-    container_name: oxmail-dovecot
-    restart: unless-stopped
-    networks:
-      - oxmail-internal
-    ports:
-      - "${OXMAIL_IMAP_PORT:-1143}:143"
-    volumes:
-      - mail-data:/var/mail
-      - config-data:/etc/oxmail
-      - postfix-spool:/var/spool/postfix
-    depends_on:
-      postfix:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  rspamd:
-    build:
-      context: ./docker/rspamd
-    container_name: oxmail-rspamd
-    restart: unless-stopped
-    networks:
-      - oxmail-internal
-    volumes:
-      - config-data:/etc/oxmail
-      - rspamd-data:/var/lib/rspamd
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   redis:
     image: redis:7-alpine
     container_name: oxmail-redis
@@ -74,6 +12,93 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  postfix:
+    build:
+      context: ./docker/postfix
+    container_name: oxmail-postfix
+    restart: unless-stopped
+    networks:
+      - oxmail-internal
+      - oxmail-external
+    ports:
+      - "${OXMAIL_SMTP_PORT:-1025}:25"
+      - "587:587"
+    volumes:
+      - mail-data:/var/mail
+      - config-data:/etc/oxmail
+      - dkim-keys:/etc/dkim
+      - postfix-spool:/var/spool/postfix
+    depends_on:
+      redis:
+        condition: service_healthy
+      rspamd:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  dovecot:
+    build:
+      context: ./docker/dovecot
+    container_name: oxmail-dovecot
+    restart: unless-stopped
+    networks:
+      - oxmail-internal
+      - oxmail-external
+    ports:
+      - "${OXMAIL_IMAP_PORT:-1143}:143"
+    volumes:
+      - mail-data:/var/mail
+      - config-data:/etc/oxmail
+      - postfix-spool:/var/spool/postfix
+    depends_on:
+      redis:
+        condition: service_healthy
+      postfix:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  rspamd:
+    build:
+      context: ./docker/rspamd
+    container_name: oxmail-rspamd
+    restart: unless-stopped
+    networks:
+      - oxmail-internal
+    volumes:
+      - config-data:/etc/oxmail
+      - rspamd-data:/var/lib/rspamd
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   oxmail-api:
     build:
@@ -86,12 +111,31 @@ services:
     networks:
       - oxmail-internal
       - oxmail-external
-    depends_on:
-      redis:
-        condition: service_healthy
+    ports:
+      - "${OXMAIL_API_PORT:-8080}:8080"
     volumes:
       - config-data:/etc/oxmail
       - mail-data:/var/mail
+      - dkim-keys:/etc/dkim
+    depends_on:
+      redis:
+        condition: service_healthy
+      postfix:
+        condition: service_healthy
+      dovecot:
+        condition: service_healthy
+      rspamd:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
   web:
     build:
@@ -101,8 +145,21 @@ services:
     restart: unless-stopped
     networks:
       - oxmail-external
+    ports:
+      - "${OXMAIL_WEB_PORT:-3000}:3000"
     depends_on:
-      - oxmail-api
+      oxmail-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
 networks:
   oxmail-internal:

@@ -1848,7 +1848,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `cmd/oxmail/`
   - Pre-commit: `go test ./cmd/oxmail/...`
 
-- [ ] 23. Go API - IMAP proxy/bridge for webmail
+- [x] 23. Go API - IMAP proxy/bridge for webmail
 
   **What to do**:
   - TDD: Write tests first for IMAP bridge
@@ -1927,7 +1927,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `internal/mail/imap_bridge.go`, `internal/api/mail_handler.go`
   - Pre-commit: `go test ./...`
 
-- [ ] 24. Go API - SMTP submission endpoint for compose
+- [x] 24. Go API - SMTP submission endpoint for compose
 
   **What to do**:
   - TDD: Write tests first for SMTP submission
@@ -2228,7 +2228,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `web/src/app/mail/search/`
   - Pre-commit: `cd web && npx vitest run`
 
-- [ ] 28. Docker Compose full integration + health checks
+- [x] 28. Docker Compose full integration + health checks
 
   **What to do**:
   - Wire all services together in docker-compose.yml with proper depends_on + healthcheck

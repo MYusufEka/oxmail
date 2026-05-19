@@ -93,6 +93,18 @@ func (s *Server) registerRoutes(conn *sql.DB) {
 		usersHandler := NewUsersHandler(userSvc, dovecotMgr)
 		usersHandler.RegisterRoutes(s.router)
 	}
+
+	// Mail handler (IMAP bridge) — works without DB
+	imapBridge := mail.NewDovecotBridge("dovecot:143")
+	mailHandler := NewMailHandler(imapBridge)
+	mailHandler.RegisterRoutes(s.router)
+
+	smtpSender := mail.NewSMTPSender(mail.SMTPSenderConfig{
+		Host: "postfix",
+		Port: "587",
+	})
+	sendHandler := NewSendHandler(smtpSender)
+	sendHandler.RegisterRoutes(s.router)
 }
 
 // ListenAndServe starts the HTTP server with graceful shutdown.

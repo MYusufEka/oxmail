@@ -63,17 +63,27 @@ type LogEntry struct {
 	Message   string    `json:"message"`
 }
 
+// Attachment represents email attachment metadata.
+type Attachment struct {
+	Filename string `json:"filename"`
+	Size     int64  `json:"size"`
+}
+
 // MailMessage represents an email message.
 type MailMessage struct {
-	ID         int64     `json:"id"`
-	From       string    `json:"from"`
-	To         []string  `json:"to"`
-	CC         []string  `json:"cc,omitempty"`
-	Subject    string    `json:"subject"`
-	BodyText   string    `json:"bodyText,omitempty"`
-	BodyHTML   string    `json:"bodyHtml,omitempty"`
-	Read       bool      `json:"read"`
-	ReceivedAt time.Time `json:"receivedAt"`
+	ID          int64        `json:"id"`
+	From        string       `json:"from"`
+	To          []string     `json:"to"`
+	CC          []string     `json:"cc,omitempty"`
+	Subject     string       `json:"subject"`
+	BodyText    string       `json:"bodyText,omitempty"`
+	BodyHTML    string       `json:"bodyHtml,omitempty"`
+	Read        bool         `json:"read"`
+	ReceivedAt  time.Time    `json:"receivedAt"`
+	Attachments []Attachment `json:"attachments,omitempty"`
+	ThreadID    string       `json:"threadId,omitempty"`
+	MessageID   string       `json:"messageId,omitempty"`
+	InReplyTo   string       `json:"inReplyTo,omitempty"`
 }
 
 // Pagination holds pagination metadata for list responses.
