@@ -1251,7 +1251,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `internal/mail/dovecot_manager.go`, integration tests
   - Pre-commit: `go test ./...`
 
-- [ ] 15. UI shell - layout, navigation, command palette
+- [x] 15. UI shell - layout, navigation, command palette
 
   **What to do**:
   - TDD: Write component tests first
@@ -1325,7 +1325,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `web/src/components/layout/`, `web/src/app/layout.tsx`
   - Pre-commit: `cd web && npx vitest run`
 
-- [ ] 16. UI - API client + TanStack Query hooks
+- [x] 16. UI - API client + TanStack Query hooks
 
   **What to do**:
   - Create `web/src/lib/api-client.ts`: typed fetch wrapper matching OpenAPI spec
@@ -1764,7 +1764,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `web/src/app/dkim/`
   - Pre-commit: `cd web && npx vitest run`
 
-- [ ] 22. CLI tool - oxmail
+- [x] 22. CLI tool - oxmail
 
   **What to do**:
   - TDD: Write tests first for CLI commands

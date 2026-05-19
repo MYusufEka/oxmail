@@ -42,3 +42,33 @@
 - Health endpoint: GET /health → 200 {"status":"ok","version":"0.1.0"}
 - Database: embed migrations via go:embed, apply in order on Open()
 - WAL mode enabled by default for SQLite
+
+## Task — CLI Tool oxmail (2026-05-19)
+
+### Go file naming
+- Files named `*_test.go` are treated as test files by Go toolchain — never use underscores before "test" for production command files
+- Used `sendtest.go` instead of `send_test.go` for the send-test command
+
+### Cobra patterns
+- `CompletionOptions.DisableDefaultCmd = true` removes the auto-generated `completion` subcommand
+- PersistentFlags on rootCmd propagate to all subcommands (used for --json, --api-url)
+- Env var defaults: read os.Getenv in init(), use as default value for flag
+
+### CLI structure
+- cmd/oxmail/main.go → entry point, calls cmd.Execute()
+- cmd/oxmail/cmd/root.go → root command + global flags
+- cmd/oxmail/cmd/client.go → shared HTTP client + apiRequest helper
+- cmd/oxmail/cmd/output.go → shared output helpers (printJSON, printSuccess, printError, newTabWriter)
+- One file per command group: domain.go, user.go, alias.go, status.go, logs.go, sendtest.go
+
+### Dependencies added
+- github.com/spf13/cobra v1.10.2
+- github.com/fatih/color v1.19.0
+
+### Testing approach
+- httptest.NewServer to mock API responses
+- Override package-level `apiURL` var to point at test server
+- Tests verify HTTP method, path, request body, and response parsing
+
+### Go path on this machine
+- Go binary at `C:\Program Files\Go\bin\go.exe` — not in default PATH for pwsh
