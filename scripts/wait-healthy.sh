@@ -11,10 +11,10 @@ TIMEOUT="${TIMEOUT:-120}"
 INTERVAL=2
 ELAPSED=0
 
-echo "Waiting for API at ${API_URL}/api/health ..."
+echo "Waiting for API at ${API_URL}/health ..."
 
 while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
-  STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${API_URL}/api/health" 2>/dev/null || echo "000")
+  STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${API_URL}/health" 2>/dev/null || echo "000")
 
   if [ "$STATUS" = "200" ]; then
     echo ""

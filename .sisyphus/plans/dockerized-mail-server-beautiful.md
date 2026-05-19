@@ -2000,7 +2000,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `internal/mail/smtp_sender.go`, `internal/api/send_handler.go`
   - Pre-commit: `go test ./...`
 
-- [ ] 25. UI - webmail inbox + thread view
+- [x] 25. UI - webmail inbox + thread view
 
   **What to do**:
   - TDD: Write component tests first
@@ -2077,7 +2077,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `web/src/app/mail/`
   - Pre-commit: `cd web && npx vitest run`
 
-- [ ] 26. UI - webmail compose + send
+- [x] 26. UI - webmail compose + send
 
   **What to do**:
   - TDD: Write component tests first
@@ -2314,7 +2314,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `docker-compose.yml`, `docker-compose.dev.yml`
   - Pre-commit: `docker compose config --quiet`
 
-- [ ] 29. Dev mode: seed data + test email tools
+- [x] 29. Dev mode: seed data + test email tools
 
   **What to do**:
   - Implement `scripts/seed.sh` fully: create domain, users, send test emails

@@ -104,7 +104,17 @@ func (s *Server) registerRoutes(conn *sql.DB) {
 		Port: "587",
 	})
 	sendHandler := NewSendHandler(smtpSender)
+	if IsDevMode() {
+		sendHandler.rateLimit = 1000
+	}
 	sendHandler.RegisterRoutes(s.router)
+
+	// Dev-only routes: test endpoints available only in dev mode
+	if IsDevMode() {
+		devHandler := NewDevHandler(smtpSender)
+		devHandler.RegisterRoutes(s.router)
+		s.logger.Info("dev mode enabled: registered dev endpoints")
+	}
 }
 
 // ListenAndServe starts the HTTP server with graceful shutdown.

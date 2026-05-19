@@ -53,41 +53,41 @@ echo ""
 # Step 2: Create domain
 echo "--- Creating domain ---"
 api_post "/api/domains" \
-  "{\"domain\":\"${DOMAIN}\"}" \
+  "{\"name\":\"${DOMAIN}\"}" \
   "Created domain: ${DOMAIN}"
 echo ""
 
 # Step 3: Create users
 echo "--- Creating users ---"
 api_post "/api/users" \
-  "{\"email\":\"alice@${DOMAIN}\",\"password\":\"${PASSWORD}\",\"name\":\"Alice Test\"}" \
+  "{\"email\":\"alice@${DOMAIN}\",\"password\":\"${PASSWORD}\",\"displayName\":\"Alice Test\"}" \
   "Created user: alice@${DOMAIN}"
 
 api_post "/api/users" \
-  "{\"email\":\"bob@${DOMAIN}\",\"password\":\"${PASSWORD}\",\"name\":\"Bob Test\"}" \
+  "{\"email\":\"bob@${DOMAIN}\",\"password\":\"${PASSWORD}\",\"displayName\":\"Bob Test\"}" \
   "Created user: bob@${DOMAIN}"
 echo ""
 
 # Step 4: Send test emails
 echo "--- Sending test emails ---"
-api_post "/api/mail/send" \
-  "{\"from\":\"alice@${DOMAIN}\",\"to\":\"bob@${DOMAIN}\",\"subject\":\"Hello Bob!\",\"body\":\"This is test email 1 from Alice.\"}" \
+api_post "/api/mail/send?auth_user=alice@${DOMAIN}" \
+  "{\"from\":\"alice@${DOMAIN}\",\"to\":[\"bob@${DOMAIN}\"],\"subject\":\"Hello Bob!\",\"bodyText\":\"This is test email 1 from Alice.\"}" \
   "Email 1: alice → bob"
 
-api_post "/api/mail/send" \
-  "{\"from\":\"bob@${DOMAIN}\",\"to\":\"alice@${DOMAIN}\",\"subject\":\"Re: Hello Bob!\",\"body\":\"Hey Alice! Got your email. This is test email 2.\"}" \
+api_post "/api/mail/send?auth_user=bob@${DOMAIN}" \
+  "{\"from\":\"bob@${DOMAIN}\",\"to\":[\"alice@${DOMAIN}\"],\"subject\":\"Re: Hello Bob!\",\"bodyText\":\"Hey Alice! Got your email. This is test email 2.\"}" \
   "Email 2: bob → alice"
 
-api_post "/api/mail/send" \
-  "{\"from\":\"alice@${DOMAIN}\",\"to\":\"bob@${DOMAIN}\",\"subject\":\"Meeting tomorrow\",\"body\":\"Can we meet at 10am? Test email 3.\"}" \
+api_post "/api/mail/send?auth_user=alice@${DOMAIN}" \
+  "{\"from\":\"alice@${DOMAIN}\",\"to\":[\"bob@${DOMAIN}\"],\"subject\":\"Meeting tomorrow\",\"bodyText\":\"Can we meet at 10am? Test email 3.\"}" \
   "Email 3: alice → bob"
 
-api_post "/api/mail/send" \
-  "{\"from\":\"bob@${DOMAIN}\",\"to\":\"alice@${DOMAIN}\",\"subject\":\"Re: Meeting tomorrow\",\"body\":\"Sure, 10am works! Test email 4.\"}" \
+api_post "/api/mail/send?auth_user=bob@${DOMAIN}" \
+  "{\"from\":\"bob@${DOMAIN}\",\"to\":[\"alice@${DOMAIN}\"],\"subject\":\"Re: Meeting tomorrow\",\"bodyText\":\"Sure, 10am works! Test email 4.\"}" \
   "Email 4: bob → alice"
 
-api_post "/api/mail/send" \
-  "{\"from\":\"alice@${DOMAIN}\",\"to\":\"bob@${DOMAIN}\",\"subject\":\"Project update\",\"body\":\"Everything is on track. Test email 5.\"}" \
+api_post "/api/mail/send?auth_user=alice@${DOMAIN}" \
+  "{\"from\":\"alice@${DOMAIN}\",\"to\":[\"bob@${DOMAIN}\"],\"subject\":\"Project update\",\"bodyText\":\"Everything is on track. Test email 5.\"}" \
   "Email 5: alice → bob"
 echo ""
 
