@@ -8,9 +8,21 @@
 # SMTP (port 25) — inbound mail
 smtp      inet  n       -       n       -       -       smtpd
 
-# Submission (port 587) — authenticated client mail
+# Submission (port 587) — authenticated client mail with STARTTLS
 submission inet  n       -       n       -       -       smtpd
   -o syslog_name=postfix/submission
+  -o smtpd_tls_security_level=encrypt
+  -o smtpd_sasl_auth_enable=yes
+  -o smtpd_sasl_type=dovecot
+  -o smtpd_sasl_path=private/auth
+  -o smtpd_recipient_restrictions=permit_sasl_authenticated,reject
+  -o smtpd_relay_restrictions=permit_sasl_authenticated,reject
+  -o milter_macro_daemon_name=ORIGINATING
+
+# SMTPS (port 465) — implicit TLS wrapper mode
+smtps     inet  n       -       n       -       -       smtpd
+  -o syslog_name=postfix/smtps
+  -o smtpd_tls_wrappermode=yes
   -o smtpd_sasl_auth_enable=yes
   -o smtpd_sasl_type=dovecot
   -o smtpd_sasl_path=private/auth

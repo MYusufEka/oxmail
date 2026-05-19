@@ -54,5 +54,20 @@ mailbox_size_limit = 0
 # Logging
 maillog_file = /dev/stdout
 
+# TLS configuration (production)
+# Certs provided by Let's Encrypt via Traefik shared volume
+smtpd_tls_cert_file = /etc/letsencrypt/acme.json.d/certificates/{{.Domain}}.crt
+smtpd_tls_key_file = /etc/letsencrypt/acme.json.d/certificates/{{.Domain}}.key
+smtpd_tls_security_level = may
+smtpd_tls_auth_only = yes
+smtpd_tls_loglevel = 1
+smtpd_tls_received_header = yes
+smtpd_tls_protocols = >=TLSv1.2
+smtpd_tls_mandatory_protocols = >=TLSv1.2
+
+smtp_tls_security_level = may
+smtp_tls_loglevel = 1
+smtp_tls_protocols = >=TLSv1.2
+
 # Compatibility
 compatibility_level = 3.6

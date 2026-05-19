@@ -125,3 +125,13 @@
 - All Alpine-based, already < 200MB each
 - Rspamd is largest at ~77MB due to vectorscan/icu-data-full dependencies
 - `apk add --no-cache` already used; added explicit `rm -rf /var/cache/apk/*` for safety
+
+## Production TLS (Task 35)
+- Traefik v3 static config uses env var interpolation for ACME email
+- docker compose config --quiet shows warnings for unset env vars but exits 0 (valid)
+- Postfix TLS: smtpd_tls_security_level=may for opportunistic STARTTLS on 25/587, wrappermode for 465
+- Dovecot TLS: ssl=yes with service imap-login block for imaps on 993
+- Let's Encrypt certs shared via letsencrypt-data volume mounted read-only in mail services
+- Production override uses Docker labels for Traefik routing + file provider for dynamic config
+- Base docker-compose.yml dev behavior unchanged — prod override only adds/overrides
+

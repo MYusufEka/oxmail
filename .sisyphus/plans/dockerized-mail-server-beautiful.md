@@ -2472,7 +2472,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `internal/api/auth_handler.go`, `internal/api/middleware/auth.go`
   - Pre-commit: `go test ./... -run TestSecurity`
 
-- [ ] 31. UI polish - animations, transitions, empty/error states
+- [x] 31. UI polish - animations, transitions, empty/error states
 
   **What to do**:
   - Add page transition animations (framer-motion or CSS transitions)
@@ -2778,7 +2778,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `tests/e2e/`, `scripts/test-e2e.sh`
   - Pre-commit: `make test-e2e`
 
-- [ ] 35. Production TLS - Let's Encrypt auto-renewal
+- [x] 35. Production TLS - Let's Encrypt auto-renewal
 
   **What to do**:
   - TDD: Write tests for TLS configuration
@@ -2855,7 +2855,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `docker-compose.prod.yml`, `docker/traefik/`, configs
   - Pre-commit: `docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet`
 
-- [ ] 36. Production outbound delivery + DNS helper
+- [x] 36. Production outbound delivery + DNS helper
 
   **What to do**:
   - TDD: Write tests for outbound delivery configuration
@@ -2932,7 +2932,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `internal/api/dns_handler.go`, `internal/mail/outbound.go`
   - Pre-commit: `go test ./...`
 
-- [ ] 37. UI - DNS setup wizard + production settings page
+- [x] 37. UI - DNS setup wizard + production settings page
 
   **What to do**:
   - TDD: Write component tests first

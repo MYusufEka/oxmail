@@ -133,6 +133,16 @@ func (s *Server) registerRoutes(conn *sql.DB, jwtSecret, adminPassword string) {
 		mailHandler := NewMailHandler(imapBridge)
 		mailHandler.RegisterRoutes(r)
 
+		// DNS records and verification
+		dkimSvc := domain.NewDKIMService("/etc/oxmail/dkim")
+		dnsHandler := NewDNSHandler(
+			os.Getenv("OXMAIL_DOMAIN"),
+			os.Getenv("OXMAIL_PUBLIC_IP"),
+			dkimSvc,
+			&NetDNSResolver{},
+		)
+		dnsHandler.RegisterRoutes(r)
+
 		smtpSender := mail.NewSMTPSender(mail.SMTPSenderConfig{
 			Host: "postfix",
 			Port: "587",

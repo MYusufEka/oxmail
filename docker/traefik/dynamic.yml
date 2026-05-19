@@ -1,0 +1,32 @@
+# Traefik dynamic configuration
+# Routers and services for oxmail production
+
+http:
+  routers:
+    web-secure:
+      rule: "Host(`${OXMAIL_DOMAIN}`)"
+      entryPoints:
+        - websecure
+      service: web-service
+      tls:
+        certResolver: letsencrypt
+
+    api-secure:
+      rule: "Host(`${OXMAIL_DOMAIN}`) && PathPrefix(`/api`)"
+      entryPoints:
+        - websecure
+      service: api-service
+      tls:
+        certResolver: letsencrypt
+      priority: 100
+
+  services:
+    web-service:
+      loadBalancer:
+        servers:
+          - url: "http://web:3000"
+
+    api-service:
+      loadBalancer:
+        servers:
+          - url: "http://oxmail-api:8080"

@@ -1,0 +1,73 @@
+# Production override for Oxmail
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Adds Traefik reverse proxy with automatic Let's Encrypt TLS,
+# production port mappings, and TLS for mail services.
+
+services:
+  traefik:
+    image: traefik:v3.0
+    container_name: oxmail-traefik
+    restart: unless-stopped
+    networks:
+      - oxmail-external
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./docker/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./docker/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - letsencrypt-data:/letsencrypt
+    environment:
+      - OXMAIL_ACME_EMAIL=${OXMAIL_ACME_EMAIL}
+      - OXMAIL_DOMAIN=${OXMAIL_DOMAIN}
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  postfix:
+    ports:
+      - "25:25"
+      - "465:465"
+      - "587:587"
+    volumes:
+      - letsencrypt-data:/etc/letsencrypt:ro
+    environment:
+      - OXMAIL_MODE=production
+
+  dovecot:
+    ports:
+      - "143:143"
+      - "993:993"
+    volumes:
+      - letsencrypt-data:/etc/letsencrypt:ro
+    environment:
+      - OXMAIL_MODE=production
+
+  oxmail-api:
+    ports:
+      - "8080:8080"
+    environment:
+      - OXMAIL_MODE=production
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.oxmail-api.rule=Host(`${OXMAIL_DOMAIN}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.oxmail-api.entrypoints=websecure"
+      - "traefik.http.routers.oxmail-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.oxmail-api.priority=100"
+      - "traefik.http.services.oxmail-api.loadbalancer.server.port=8080"
+
+  web:
+    ports:
+      - "3000:3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.oxmail-web.rule=Host(`${OXMAIL_DOMAIN}`)"
+      - "traefik.http.routers.oxmail-web.entrypoints=websecure"
+      - "traefik.http.routers.oxmail-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.oxmail-web.loadbalancer.server.port=3000"
+
+volumes:
+  letsencrypt-data:
