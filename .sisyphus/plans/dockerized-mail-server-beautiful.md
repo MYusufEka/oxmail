@@ -1398,7 +1398,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `web/src/lib/api-client.ts`, `web/src/hooks/`
   - Pre-commit: `cd web && npx tsc --noEmit && npx vitest run`
 
-- [ ] 17. UI - domain management pages
+- [x] 17. UI - domain management pages
 
   **What to do**:
   - TDD: Write component tests first
@@ -1476,7 +1476,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `web/src/app/domains/`
   - Pre-commit: `cd web && npx vitest run && npx tsc --noEmit`
 
-- [ ] 18. UI - user/mailbox management pages
+- [x] 18. UI - user/mailbox management pages
 
   **What to do**:
   - TDD: Write component tests first
@@ -1547,7 +1547,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `web/src/app/users/`
   - Pre-commit: `cd web && npx vitest run && npx tsc --noEmit`
 
-- [ ] 19. UI - real-time log viewer
+- [x] 19. UI - real-time log viewer
 
   **What to do**:
   - TDD: Write component tests first
@@ -1618,7 +1618,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `web/src/app/logs/`
   - Pre-commit: `cd web && npx vitest run`
 
-- [ ] 20. UI - health/monitoring dashboard
+- [x] 20. UI - health/monitoring dashboard
 
   **What to do**:
   - TDD: Write component tests first
@@ -1692,7 +1692,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `web/src/app/(dashboard)/`
   - Pre-commit: `cd web && npx vitest run`
 
-- [ ] 21. UI - DKIM management page
+- [x] 21. UI - DKIM management page
 
   **What to do**:
   - TDD: Write component tests first
