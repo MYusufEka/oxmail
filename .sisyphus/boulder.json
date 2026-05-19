@@ -1,0 +1,85 @@
+{
+  "schema_version": 2,
+  "active_work_id": "dockerized-mail-server-beautiful-6aabbfcd",
+  "works": {
+    "dockerized-mail-server-beautiful-6aabbfcd": {
+      "work_id": "dockerized-mail-server-beautiful-6aabbfcd",
+      "active_plan": "C:\\Projects\\oxmail\\.sisyphus\\plans\\dockerized-mail-server-beautiful.md",
+      "plan_name": "dockerized-mail-server-beautiful",
+      "status": "active",
+      "started_at": "2026-05-19T15:35:57.484Z",
+      "updated_at": "2026-05-19T15:55:33.469Z",
+      "session_ids": [
+        "ses_1bf1edafaffeW9KJdHFobPKjAL"
+      ],
+      "session_origins": {
+        "ses_1bf1edafaffeW9KJdHFobPKjAL": "direct"
+      },
+      "agent": "atlas",
+      "task_sessions": {
+        "todo:1": {
+          "task_key": "todo:1",
+          "task_label": "1",
+          "task_title": "Monorepo scaffolding + Docker Compose skeleton",
+          "session_id": "ses_1bf1d4402ffe6m01Rcjyjb3bk5",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-05-19T15:41:57.430Z",
+          "started_at": "2026-05-19T15:40:35.182Z",
+          "status": "completed",
+          "ended_at": "2026-05-19T15:41:57.429Z",
+          "elapsed_ms": 82247
+        },
+        "todo:2": {
+          "task_key": "todo:2",
+          "task_label": "2",
+          "task_title": "Go API project setup + test infrastructure",
+          "session_id": "ses_1bf185a0bffe4zBBcAmdSCXBG9",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-05-19T15:55:33.470Z",
+          "started_at": "2026-05-19T15:55:33.470Z",
+          "status": "running"
+        }
+      }
+    }
+  },
+  "active_plan": "C:\\Projects\\oxmail\\.sisyphus\\plans\\dockerized-mail-server-beautiful.md",
+  "started_at": "2026-05-19T15:35:57.484Z",
+  "status": "active",
+  "updated_at": "2026-05-19T15:55:33.469Z",
+  "session_ids": [
+    "ses_1bf1edafaffeW9KJdHFobPKjAL"
+  ],
+  "session_origins": {
+    "ses_1bf1edafaffeW9KJdHFobPKjAL": "direct"
+  },
+  "plan_name": "dockerized-mail-server-beautiful",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Monorepo scaffolding + Docker Compose skeleton",
+      "session_id": "ses_1bf1d4402ffe6m01Rcjyjb3bk5",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-19T15:41:57.430Z",
+      "started_at": "2026-05-19T15:40:35.182Z",
+      "status": "completed",
+      "ended_at": "2026-05-19T15:41:57.429Z",
+      "elapsed_ms": 82247
+    },
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "Go API project setup + test infrastructure",
+      "session_id": "ses_1bf185a0bffe4zBBcAmdSCXBG9",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-19T15:55:33.470Z",
+      "started_at": "2026-05-19T15:55:33.470Z",
+      "status": "running"
+    }
+  },
+  "agent": "atlas"
+}

@@ -1,0 +1,118 @@
+services:
+  postfix:
+    build:
+      context: ./docker/postfix
+    container_name: oxmail-postfix
+    restart: unless-stopped
+    networks:
+      - oxmail-internal
+    ports:
+      - "${OXMAIL_SMTP_PORT:-1025}:25"
+      - "587:587"
+    volumes:
+      - mail-data:/var/mail
+      - config-data:/etc/oxmail
+      - dkim-keys:/etc/dkim
+      - postfix-spool:/var/spool/postfix
+    depends_on:
+      rspamd:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  dovecot:
+    build:
+      context: ./docker/dovecot
+    container_name: oxmail-dovecot
+    restart: unless-stopped
+    networks:
+      - oxmail-internal
+    ports:
+      - "${OXMAIL_IMAP_PORT:-1143}:143"
+    volumes:
+      - mail-data:/var/mail
+      - config-data:/etc/oxmail
+      - postfix-spool:/var/spool/postfix
+    depends_on:
+      postfix:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  rspamd:
+    build:
+      context: ./docker/rspamd
+    container_name: oxmail-rspamd
+    restart: unless-stopped
+    networks:
+      - oxmail-internal
+    volumes:
+      - config-data:/etc/oxmail
+      - rspamd-data:/var/lib/rspamd
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: oxmail-redis
+    restart: unless-stopped
+    networks:
+      - oxmail-internal
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  oxmail-api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    container_name: oxmail-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - oxmail-internal
+      - oxmail-external
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - config-data:/etc/oxmail
+      - mail-data:/var/mail
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: oxmail-web
+    restart: unless-stopped
+    networks:
+      - oxmail-external
+    depends_on:
+      - oxmail-api
+
+networks:
+  oxmail-internal:
+    internal: true
+  oxmail-external:
+
+volumes:
+  mail-data:
+  config-data:
+  dkim-keys:
+  redis-data:
+  postfix-spool:
+  rspamd-data:

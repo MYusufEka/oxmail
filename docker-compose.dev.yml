@@ -1,0 +1,30 @@
+services:
+  postfix:
+    ports:
+      - "${OXMAIL_SMTP_PORT:-1025}:25"
+    networks:
+      - oxmail-external
+
+  dovecot:
+    ports:
+      - "${OXMAIL_IMAP_PORT:-1143}:143"
+    networks:
+      - oxmail-external
+
+  oxmail-api:
+    ports:
+      - "${OXMAIL_API_PORT:-8080}:8080"
+    volumes:
+      - ./cmd:/app/cmd
+      - ./internal:/app/internal
+    environment:
+      - OXMAIL_MODE=dev
+
+  web:
+    ports:
+      - "${OXMAIL_WEB_PORT:-3000}:3000"
+    volumes:
+      - ./web/src:/app/src
+      - ./web/public:/app/public
+    environment:
+      - NODE_ENV=development

@@ -1,0 +1,18 @@
+# Dovecot mail location configuration template
+# Rendered by oxmail-api — do NOT edit directly
+
+# Mail storage location
+mail_location = maildir:/var/mail/vhosts/%d/%n
+
+# Mail UID/GID
+mail_uid = 5000
+mail_gid = 5000
+
+# First valid UID/GID
+first_valid_uid = 5000
+last_valid_uid = 5000
+first_valid_gid = 5000
+last_valid_gid = 5000
+
+# Maildir permissions
+mail_privileged_group = vmail

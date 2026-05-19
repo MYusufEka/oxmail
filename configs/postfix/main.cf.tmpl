@@ -1,0 +1,58 @@
+# Postfix main configuration template
+# Rendered by oxmail-api — do NOT edit directly
+
+# Identity
+myhostname = {{.Hostname}}
+mydomain = {{.Domain}}
+myorigin = $mydomain
+mydestination = localhost
+
+# Virtual mailbox configuration
+virtual_mailbox_domains = /etc/postfix/virtual_domains
+virtual_mailbox_maps = /etc/postfix/virtual_mailboxes
+virtual_alias_maps = /etc/postfix/virtual_aliases
+virtual_mailbox_base = /var/mail/vhosts
+virtual_minimum_uid = 5000
+virtual_uid_maps = static:5000
+virtual_gid_maps = static:5000
+
+# Delivery via Dovecot LMTP
+virtual_transport = lmtp:unix:/var/spool/postfix/private/dovecot-lmtp
+
+# Network
+inet_interfaces = all
+inet_protocols = ipv4
+
+# Restrictions
+smtpd_relay_restrictions =
+    permit_mynetworks,
+    permit_sasl_authenticated,
+    reject_unauth_destination
+
+smtpd_recipient_restrictions =
+    permit_mynetworks,
+    permit_sasl_authenticated,
+    reject_unauth_destination
+
+# SASL authentication (via Dovecot)
+smtpd_sasl_type = dovecot
+smtpd_sasl_path = private/auth
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_security_options = noanonymous
+smtpd_sasl_local_domain = $mydomain
+
+# Rspamd milter
+smtpd_milters = inet:rspamd:11332
+non_smtpd_milters = inet:rspamd:11332
+milter_protocol = 6
+milter_default_action = accept
+
+# Size limits
+message_size_limit = {{.MessageSizeLimit}}
+mailbox_size_limit = 0
+
+# Logging
+maillog_file = /dev/stdout
+
+# Compatibility
+compatibility_level = 3.6

@@ -1,0 +1,51 @@
+# =============================================================================
+# Oxmail .gitignore
+# =============================================================================
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+vendor/
+tmp/
+*.test
+*.out
+
+# Node / Next.js
+node_modules/
+.next/
+dist/
+out/
+.turbo/
+*.tsbuildinfo
+
+# Docker
+docker/db_data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test / Coverage
+coverage/
+*.cover
+*.prof
+playwright-report/
+test-results/
+
+# Build artifacts
+bin/

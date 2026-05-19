@@ -1,0 +1,906 @@
+openapi: 3.1.0
+info:
+  title: Oxmail API
+  version: 1.0.0
+  description: Oxmail mail server management API
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+
+paths:
+  /api/auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Authenticate and get JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/domains:
+    get:
+      operationId: listDomains
+      tags: [domains]
+      summary: List all domains
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: List of domains
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainListResponse"
+    post:
+      operationId: createDomain
+      tags: [domains]
+      summary: Create a new domain
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDomainRequest"
+      responses:
+        "201":
+          description: Domain created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Domain"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/domains/{domain}:
+    get:
+      operationId: getDomain
+      tags: [domains]
+      summary: Get domain by name
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Domain details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Domain"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteDomain
+      tags: [domains]
+      summary: Delete a domain
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Domain deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/domains/{domain}/dkim:
+    get:
+      operationId: getDKIM
+      tags: [dkim]
+      summary: Get DKIM key for domain
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: DKIM key details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DKIMKey"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: generateDKIM
+      tags: [dkim]
+      summary: Generate DKIM key for domain
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: DKIM key generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DKIMKey"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteDKIM
+      tags: [dkim]
+      summary: Delete DKIM key for domain
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: DKIM key deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserListResponse"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/users/{email}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get user by email
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        "200":
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      summary: Delete a user
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        "204":
+          description: User deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/aliases:
+    get:
+      operationId: listAliases
+      tags: [aliases]
+      summary: List all aliases
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: List of aliases
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AliasListResponse"
+    post:
+      operationId: createAlias
+      tags: [aliases]
+      summary: Create a new alias
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAliasRequest"
+      responses:
+        "201":
+          description: Alias created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alias"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/aliases/{id}:
+    get:
+      operationId: getAlias
+      tags: [aliases]
+      summary: Get alias by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Alias details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alias"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteAlias
+      tags: [aliases]
+      summary: Delete an alias
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: Alias deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/health:
+    get:
+      operationId: getHealth
+      tags: [health]
+      summary: Get system health status
+      responses:
+        "200":
+          description: Health status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /api/logs:
+    get:
+      operationId: getLogs
+      tags: [logs]
+      summary: Get log entries
+      parameters:
+        - name: service
+          in: query
+          schema:
+            type: string
+            enum: [postfix, dovecot, rspamd, api]
+        - name: level
+          in: query
+          schema:
+            type: string
+            enum: [debug, info, warn, error]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+      responses:
+        "200":
+          description: Log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LogEntry"
+
+  /api/logs/stream:
+    get:
+      operationId: streamLogs
+      tags: [logs]
+      summary: Stream logs via WebSocket
+      description: WebSocket endpoint for real-time log streaming
+      parameters:
+        - name: service
+          in: query
+          schema:
+            type: string
+            enum: [postfix, dovecot, rspamd, api]
+        - name: level
+          in: query
+          schema:
+            type: string
+            enum: [debug, info, warn, error]
+      responses:
+        "101":
+          description: WebSocket upgrade
+
+  /api/mail/inbox:
+    get:
+      operationId: getInbox
+      tags: [mail]
+      summary: Get inbox messages
+      parameters:
+        - name: user
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Inbox messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailMessageListResponse"
+
+  /api/mail/messages/{id}:
+    get:
+      operationId: getMessage
+      tags: [mail]
+      summary: Get a single mail message
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Mail message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailMessage"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/mail/send:
+    post:
+      operationId: sendMail
+      tags: [mail]
+      summary: Send an email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMailRequest"
+      responses:
+        "202":
+          description: Mail queued for delivery
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendMailResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/mail/search:
+    get:
+      operationId: searchMail
+      tags: [mail]
+      summary: Search mail messages
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: user
+          in: query
+          schema:
+            type: string
+            format: email
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailMessageListResponse"
+
+  /api/dns/records:
+    get:
+      operationId: getDNSRecords
+      tags: [dns]
+      summary: Get required DNS records for all domains
+      responses:
+        "200":
+          description: DNS records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DNSRecord"
+
+  /api/dns/check:
+    get:
+      operationId: checkDNS
+      tags: [dns]
+      summary: Check DNS configuration status
+      responses:
+        "200":
+          description: DNS check results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DNSCheckResult"
+
+components:
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 50
+        minimum: 1
+        maximum: 100
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+
+    Pagination:
+      type: object
+      required: [page, limit, total]
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+
+    Domain:
+      type: object
+      required: [id, name, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateDomainRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 3
+
+    DomainListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Domain"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    User:
+      type: object
+      required: [id, email, domainId, quota, active, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        domainId:
+          type: integer
+          format: int64
+        displayName:
+          type: string
+        quota:
+          type: integer
+          description: Mailbox quota in bytes
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateUserRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        displayName:
+          type: string
+        quota:
+          type: integer
+          default: 1073741824
+          description: Mailbox quota in bytes (default 1GB)
+
+    UserListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    Alias:
+      type: object
+      required: [id, sourceAddress, destinationAddress, active, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        sourceAddress:
+          type: string
+          format: email
+        destinationAddress:
+          type: string
+          format: email
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateAliasRequest:
+      type: object
+      required: [sourceAddress, destinationAddress]
+      properties:
+        sourceAddress:
+          type: string
+          format: email
+        destinationAddress:
+          type: string
+          format: email
+
+    AliasListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Alias"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    DKIMKey:
+      type: object
+      required: [domain, selector, publicKey, createdAt]
+      properties:
+        domain:
+          type: string
+        selector:
+          type: string
+        publicKey:
+          type: string
+        dnsRecord:
+          type: string
+          description: Full DNS TXT record value
+        createdAt:
+          type: string
+          format: date-time
+
+    HealthStatus:
+      type: object
+      required: [status, services]
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        services:
+          type: object
+          required: [postfix, dovecot, rspamd, redis]
+          properties:
+            postfix:
+              $ref: "#/components/schemas/ServiceHealth"
+            dovecot:
+              $ref: "#/components/schemas/ServiceHealth"
+            rspamd:
+              $ref: "#/components/schemas/ServiceHealth"
+            redis:
+              $ref: "#/components/schemas/ServiceHealth"
+
+    ServiceHealth:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [up, down]
+        latencyMs:
+          type: integer
+
+    LogEntry:
+      type: object
+      required: [id, timestamp, service, level, message]
+      properties:
+        id:
+          type: integer
+          format: int64
+        timestamp:
+          type: string
+          format: date-time
+        service:
+          type: string
+          enum: [postfix, dovecot, rspamd, api]
+        level:
+          type: string
+          enum: [debug, info, warn, error]
+        message:
+          type: string
+
+    MailMessage:
+      type: object
+      required: [id, from, to, subject, receivedAt, read]
+      properties:
+        id:
+          type: integer
+          format: int64
+        from:
+          type: string
+          format: email
+        to:
+          type: array
+          items:
+            type: string
+            format: email
+        cc:
+          type: array
+          items:
+            type: string
+            format: email
+        subject:
+          type: string
+        bodyText:
+          type: string
+        bodyHtml:
+          type: string
+        read:
+          type: boolean
+        receivedAt:
+          type: string
+          format: date-time
+
+    MailMessageListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailMessage"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    SendMailRequest:
+      type: object
+      required: [from, to, subject]
+      properties:
+        from:
+          type: string
+          format: email
+        to:
+          type: array
+          items:
+            type: string
+            format: email
+          minItems: 1
+        cc:
+          type: array
+          items:
+            type: string
+            format: email
+        subject:
+          type: string
+          minLength: 1
+        bodyText:
+          type: string
+        bodyHtml:
+          type: string
+
+    SendMailResponse:
+      type: object
+      required: [messageId, status]
+      properties:
+        messageId:
+          type: string
+        status:
+          type: string
+          enum: [queued]
+
+    DNSRecord:
+      type: object
+      required: [domain, type, name, value]
+      properties:
+        domain:
+          type: string
+        type:
+          type: string
+          enum: [MX, TXT, CNAME, A]
+        name:
+          type: string
+        value:
+          type: string
+        priority:
+          type: integer
+
+    DNSCheckResult:
+      type: object
+      required: [domain, record, expected, actual, valid]
+      properties:
+        domain:
+          type: string
+        record:
+          type: string
+        expected:
+          type: string
+        actual:
+          type: string
+        valid:
+          type: boolean
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+
+    LoginResponse:
+      type: object
+      required: [token, expiresAt]
+      properties:
+        token:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
