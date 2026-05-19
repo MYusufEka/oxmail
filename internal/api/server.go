@@ -16,6 +16,7 @@ import (
 	"github.com/MYusufEka/oxmail/internal/database"
 	"github.com/MYusufEka/oxmail/internal/domain"
 	"github.com/MYusufEka/oxmail/internal/health"
+	"github.com/MYusufEka/oxmail/internal/mail"
 )
 
 // Server holds the HTTP server and router.
@@ -70,16 +71,26 @@ func (s *Server) registerRoutes(conn *sql.DB) {
 	if conn != nil {
 		db := &database.DB{Conn: conn}
 
+		postfixMgr := mail.NewPostfixManager(mail.PostfixConfig{
+			DomainsPath: "/etc/postfix/virtual_domains",
+			AliasesPath: "/etc/postfix/virtual_aliases",
+		}, &mail.ExecCommandExecutor{})
+
 		aliasSvc := domain.NewAliasService(conn)
-		aliasHandler := NewAliasHandler(aliasSvc)
+		aliasHandler := NewAliasHandler(aliasSvc, postfixMgr)
 		aliasHandler.RegisterRoutes(s.router)
 
 		domainSvc := domain.NewDomainService(db)
-		domainsHandler := NewDomainsHandler(domainSvc, "/etc/oxmail/postfix/virtual_domains")
+		domainsHandler := NewDomainsHandler(domainSvc, "/etc/oxmail/postfix/virtual_domains", postfixMgr)
 		domainsHandler.RegisterRoutes(s.router)
 
 		userSvc := domain.NewUserService(db, domainSvc)
-		usersHandler := NewUsersHandler(userSvc)
+		dovecotMgr := mail.NewDovecotManager(
+			"/etc/dovecot",
+			"/var/mail/vhosts",
+			&mail.ExecCommandExecutor{},
+		)
+		usersHandler := NewUsersHandler(userSvc, dovecotMgr)
 		usersHandler.RegisterRoutes(s.router)
 	}
 }

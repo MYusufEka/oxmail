@@ -1107,7 +1107,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `internal/logs/collector.go`, `internal/logs/parser.go`, `internal/api/logs_handler.go`
   - Pre-commit: `go test ./...`
 
-- [ ] 13. Postfix dynamic config integration
+- [x] 13. Postfix dynamic config integration
 
   **What to do**:
   - TDD: Write integration tests for config reload
@@ -1179,7 +1179,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `internal/mail/postfix_manager.go`, integration tests
   - Pre-commit: `go test ./...`
 
-- [ ] 14. Dovecot dynamic config integration
+- [x] 14. Dovecot dynamic config integration
 
   **What to do**:
   - TDD: Write integration tests for Dovecot user management

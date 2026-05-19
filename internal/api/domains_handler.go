@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/MYusufEka/oxmail/internal/config"
 	"github.com/MYusufEka/oxmail/internal/domain"
+	"github.com/MYusufEka/oxmail/internal/mail"
 )
 
 // DomainListResponse is the envelope for paginated domain lists.
@@ -19,17 +20,19 @@ type DomainListResponse struct {
 
 // DomainsHandler handles HTTP requests for domain management.
 type DomainsHandler struct {
-	service   *domain.DomainService
-	generator *config.PostfixDomainsGenerator
-	router    *chi.Mux
+	service        *domain.DomainService
+	generator      *config.PostfixDomainsGenerator
+	postfixManager *mail.PostfixManager
+	router         *chi.Mux
 }
 
 // NewDomainsHandler creates a new DomainsHandler with routes configured.
-func NewDomainsHandler(service *domain.DomainService, configPath string) *DomainsHandler {
+func NewDomainsHandler(service *domain.DomainService, configPath string, postfixManager *mail.PostfixManager) *DomainsHandler {
 	h := &DomainsHandler{
-		service:   service,
-		generator: config.NewPostfixDomainsGenerator(configPath),
-		router:    chi.NewRouter(),
+		service:        service,
+		generator:      config.NewPostfixDomainsGenerator(configPath),
+		postfixManager: postfixManager,
+		router:         chi.NewRouter(),
 	}
 
 	h.router.Route("/api/domains", func(r chi.Router) {
@@ -164,4 +167,7 @@ func (h *DomainsHandler) regenerateConfig(r *http.Request) {
 		return
 	}
 	h.generator.Generate(domains)
+	if h.postfixManager != nil {
+		h.postfixManager.ApplyDomainConfig(domains)
+	}
 }

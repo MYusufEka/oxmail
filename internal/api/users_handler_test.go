@@ -50,7 +50,7 @@ func newUsersHandler(t *testing.T) *api.UsersHandler {
 	db := setupUsersTestDB(t)
 	lookup := &testDomainLookup{db: db}
 	userSvc := domain.NewUserService(db, lookup)
-	return api.NewUsersHandler(userSvc)
+	return api.NewUsersHandler(userSvc, nil)
 }
 
 func TestUsersHandler_Create(t *testing.T) {

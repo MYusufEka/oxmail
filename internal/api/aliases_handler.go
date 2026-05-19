@@ -9,19 +9,22 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/MYusufEka/oxmail/internal/domain"
+	"github.com/MYusufEka/oxmail/internal/mail"
 )
 
 // AliasHandler handles HTTP requests for alias management.
 type AliasHandler struct {
-	service *domain.AliasService
-	router  *chi.Mux
+	service        *domain.AliasService
+	postfixManager *mail.PostfixManager
+	router         *chi.Mux
 }
 
 // NewAliasHandler creates a new AliasHandler with routes configured.
-func NewAliasHandler(service *domain.AliasService) *AliasHandler {
+func NewAliasHandler(service *domain.AliasService, postfixManager *mail.PostfixManager) *AliasHandler {
 	h := &AliasHandler{
-		service: service,
-		router:  chi.NewRouter(),
+		service:        service,
+		postfixManager: postfixManager,
+		router:         chi.NewRouter(),
 	}
 
 	h.router.Route("/api/aliases", func(r chi.Router) {
@@ -66,6 +69,8 @@ func (h *AliasHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		h.handleServiceError(w, err)
 		return
 	}
+
+	h.regenerateAliasConfig()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -122,6 +127,8 @@ func (h *AliasHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.regenerateAliasConfig()
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
@@ -153,6 +160,17 @@ func (h *AliasHandler) handleServiceError(w http.ResponseWriter, err error) {
 func parseIDParam(r *http.Request) (int64, error) {
 	idStr := chi.URLParam(r, "id")
 	return strconv.ParseInt(idStr, 10, 64)
+}
+
+func (h *AliasHandler) regenerateAliasConfig() {
+	if h.postfixManager == nil {
+		return
+	}
+	aliases, err := h.service.GetAll()
+	if err != nil {
+		return
+	}
+	h.postfixManager.ApplyAliasConfig(aliases)
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {

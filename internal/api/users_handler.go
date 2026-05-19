@@ -1,14 +1,28 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/MYusufEka/oxmail/internal/domain"
 )
+
+// MailConfigApplier abstracts Dovecot config application for testability.
+type MailConfigApplier interface {
+	ApplyUserConfig(users []domain.User) error
+	CreateMaildir(email string, domainName string) error
+}
+
+// UserLister provides listing all users for config regeneration.
+type UserLister interface {
+	List(ctx context.Context, params domain.UserListParams) ([]domain.User, int, error)
+}
 
 // UserListResponse is the envelope for paginated user lists.
 type UserListResponse struct {
@@ -18,15 +32,19 @@ type UserListResponse struct {
 
 // UsersHandler handles HTTP requests for user/mailbox management.
 type UsersHandler struct {
-	service *domain.UserService
-	router  *chi.Mux
+	service     *domain.UserService
+	mailConfig  MailConfigApplier
+	userLister  UserLister
+	router      *chi.Mux
 }
 
 // NewUsersHandler creates a new UsersHandler with routes configured.
-func NewUsersHandler(service *domain.UserService) *UsersHandler {
+func NewUsersHandler(service *domain.UserService, mailConfig MailConfigApplier) *UsersHandler {
 	h := &UsersHandler{
-		service: service,
-		router:  chi.NewRouter(),
+		service:    service,
+		mailConfig: mailConfig,
+		userLister: service,
+		router:     chi.NewRouter(),
 	}
 
 	h.router.Route("/api/users", func(r chi.Router) {
@@ -70,6 +88,16 @@ func (h *UsersHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.handleServiceError(w, err)
 		return
+	}
+
+	if h.mailConfig != nil {
+		domainName := extractDomainFromEmail(user.Email)
+		if err := h.mailConfig.CreateMaildir(user.Email, domainName); err != nil {
+			slog.Error("failed to create maildir", "email", user.Email, "error", err)
+		}
+		if err := h.applyAllUsersConfig(r.Context()); err != nil {
+			slog.Error("failed to apply dovecot config after create", "error", err)
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -155,6 +183,12 @@ func (h *UsersHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.mailConfig != nil {
+		if err := h.applyAllUsersConfig(r.Context()); err != nil {
+			slog.Error("failed to apply dovecot config after delete", "error", err)
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
@@ -175,4 +209,21 @@ func (h *UsersHandler) handleServiceError(w http.ResponseWriter, err error) {
 	}
 
 	writeError(w, http.StatusInternalServerError, "internal_error", "unexpected error")
+}
+
+// applyAllUsersConfig fetches all users and regenerates Dovecot passdb/userdb.
+func (h *UsersHandler) applyAllUsersConfig(ctx context.Context) error {
+	users, _, err := h.userLister.List(ctx, domain.UserListParams{Page: 1, Limit: 10000})
+	if err != nil {
+		return err
+	}
+	return h.mailConfig.ApplyUserConfig(users)
+}
+
+func extractDomainFromEmail(email string) string {
+	parts := strings.SplitN(email, "@", 2)
+	if len(parts) != 2 {
+		return ""
+	}
+	return parts[1]
 }

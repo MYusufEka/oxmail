@@ -28,7 +28,7 @@ func setupAliasTestServer(t *testing.T) (*api.AliasHandler, *database.DB) {
 	require.NoError(t, err)
 
 	svc := domain.NewAliasService(db.Conn)
-	handler := api.NewAliasHandler(svc)
+	handler := api.NewAliasHandler(svc, nil)
 	return handler, db
 }
 

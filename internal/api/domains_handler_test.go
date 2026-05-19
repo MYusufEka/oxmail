@@ -31,7 +31,7 @@ func newDomainsHandler(t *testing.T) *api.DomainsHandler {
 	db := setupDomainsTestDB(t)
 	svc := domain.NewDomainService(db)
 	configPath := filepath.Join(t.TempDir(), "postfix", "virtual_domains")
-	return api.NewDomainsHandler(svc, configPath)
+	return api.NewDomainsHandler(svc, configPath, nil)
 }
 
 func TestDomainsHandler_Create(t *testing.T) {
@@ -211,7 +211,7 @@ func TestDomainsHandler_ConfigGeneration(t *testing.T) {
 		db := setupDomainsTestDB(t)
 		svc := domain.NewDomainService(db)
 		configPath := filepath.Join(t.TempDir(), "postfix", "virtual_domains")
-		h := api.NewDomainsHandler(svc, configPath)
+		h := api.NewDomainsHandler(svc, configPath, nil)
 
 		body := `{"name":"configured.com"}`
 		req := httptest.NewRequest(http.MethodPost, "/api/domains", bytes.NewBufferString(body))
