@@ -1,4 +1,4 @@
-.PHONY: up down build test test-go test-web test-e2e lint logs dev seed reset clean help env
+.PHONY: up down build test test-go test-web test-e2e lint logs dev seed reset clean help env prod prod-down prod-test
 
 # Default target
 .DEFAULT_GOAL := help
@@ -63,6 +63,18 @@ reset:
 	docker compose down -v
 	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 	./scripts/seed.sh
+
+## prod: Start production stack (Traefik + TLS + production ports)
+prod: env
+	docker compose --profile prod -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+## prod-down: Stop production stack
+prod-down:
+	docker compose --profile prod -f docker-compose.yml -f docker-compose.prod.yml down
+
+## prod-test: Run production integration tests
+prod-test:
+	./tests/e2e/production_test.sh
 
 ## clean: Remove all containers, volumes, and build artifacts
 clean:

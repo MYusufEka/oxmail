@@ -1,5 +1,5 @@
 # Production override for Oxmail
-# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Usage: docker compose --profile prod -f docker-compose.yml -f docker-compose.prod.yml up -d
 #
 # Adds Traefik reverse proxy with automatic Let's Encrypt TLS,
 # production port mappings, and TLS for mail services.
@@ -9,6 +9,8 @@ services:
     image: traefik:v3.0
     container_name: oxmail-traefik
     restart: unless-stopped
+    profiles:
+      - prod
     networks:
       - oxmail-external
     ports:

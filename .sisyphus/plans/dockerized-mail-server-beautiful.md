@@ -3007,7 +3007,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `web/src/app/production/`
   - Pre-commit: `cd web && npx vitest run`
 
-- [ ] 38. Production integration test + docker-compose profiles
+- [x] 38. Production integration test + docker-compose profiles
 
   **What to do**:
   - Create Docker Compose profiles: `dev` (default) and `prod`
