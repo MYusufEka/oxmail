@@ -2157,7 +2157,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `web/src/app/mail/compose/`
   - Pre-commit: `cd web && npx vitest run`
 
-- [ ] 27. UI - webmail search
+- [x] 27. UI - webmail search
 
   **What to do**:
   - TDD: Write component tests first
@@ -2390,7 +2390,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `scripts/seed.sh`, `internal/api/dev_handler.go`
   - Pre-commit: `make seed`
 
-- [ ] 30. Security hardening - open relay test, auth enforcement
+- [x] 30. Security hardening - open relay test, auth enforcement
 
   **What to do**:
   - TDD: Write security tests first (these MUST fail initially)
@@ -2550,7 +2550,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `web/src/components/`, `web/src/app/`
   - Pre-commit: `cd web && npx vitest run`
 
-- [ ] 32. Performance tuning - RAM budget, cold start optimization
+- [x] 32. Performance tuning - RAM budget, cold start optimization
 
   **What to do**:
   - Profile idle RAM usage per container, identify optimization targets
@@ -2624,7 +2624,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `docker-compose.yml`, Dockerfiles, configs
   - Pre-commit: `docker compose build`
 
-- [ ] 33. README + quickstart documentation
+- [x] 33. README + quickstart documentation
 
   **What to do**:
   - Create `README.md` with:
@@ -2700,7 +2700,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `README.md`, `docs/`
   - Pre-commit: N/A
 
-- [ ] 34. End-to-end integration test suite
+- [x] 34. End-to-end integration test suite
 
   **What to do**:
   - Create comprehensive E2E test suite using Playwright + bash scripts

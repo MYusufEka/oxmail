@@ -32,9 +32,9 @@ test-go:
 test-web:
 	cd web && npm test
 
-## test-e2e: Run Playwright E2E tests
+## test-e2e: Run E2E integration tests
 test-e2e:
-	cd tests/e2e && npx playwright test
+	./scripts/test-e2e.sh
 
 ## lint: Run all linters
 lint:

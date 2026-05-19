@@ -6,8 +6,20 @@ RUN apk add --no-cache \
     rspamd-proxy \
     curl \
     && mkdir -p /etc/rspamd/local.d \
+    && mkdir -p /etc/rspamd/override.d \
     && mkdir -p /var/lib/rspamd \
-    && chown -R rspamd:rspamd /var/lib/rspamd
+    && chown -R rspamd:rspamd /var/lib/rspamd \
+    && rm -rf /var/cache/apk/* /tmp/*
+
+# Performance tuning: reduce DNS requests, history size
+RUN echo "dns_max_requests = 16;" > /etc/rspamd/local.d/options.inc \
+    && echo "history_rows = 100;" >> /etc/rspamd/local.d/options.inc \
+    && echo "dns_retransmits = 2;" >> /etc/rspamd/local.d/options.inc
+
+# Disable heavy modules
+RUN echo "enabled = false;" > /etc/rspamd/override.d/fuzzy_check.conf \
+    && echo "enabled = false;" > /etc/rspamd/override.d/neural.conf \
+    && echo "enabled = false;" > /etc/rspamd/override.d/chartable.conf
 
 COPY healthcheck.sh /usr/local/bin/healthcheck.sh
 RUN chmod +x /usr/local/bin/healthcheck.sh

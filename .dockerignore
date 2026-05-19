@@ -1,0 +1,14 @@
+# Root .dockerignore - used by oxmail-api build context
+.git
+.gitignore
+.sisyphus
+.agents
+node_modules
+web/node_modules
+web/.next
+docker/db_data
+*.md
+.env
+.env.*
+tests
+docs

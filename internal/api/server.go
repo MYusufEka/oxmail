@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	authmw "github.com/MYusufEka/oxmail/internal/api/middleware"
 	"github.com/MYusufEka/oxmail/internal/database"
 	"github.com/MYusufEka/oxmail/internal/domain"
 	"github.com/MYusufEka/oxmail/internal/health"
@@ -38,6 +41,26 @@ func NewServer(conn ...*sql.DB) *Server {
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.Timeout(30 * time.Second))
 
+	// Security headers + CORS
+	allowOrigin := os.Getenv("OXMAIL_WEB_URL")
+	if allowOrigin == "" || IsDevMode() {
+		allowOrigin = "*"
+	}
+	router.Use(authmw.SecurityHeaders(allowOrigin))
+
+	// JWT secret
+	jwtSecret := os.Getenv("OXMAIL_JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = generateRandomSecret()
+		logger.Warn("OXMAIL_JWT_SECRET not set, generated random secret (tokens won't survive restart)")
+	}
+
+	// Admin password
+	adminPassword := os.Getenv("OXMAIL_ADMIN_PASSWORD")
+	if adminPassword == "" {
+		adminPassword = "changeme123"
+	}
+
 	srv := &Server{
 		router: router,
 		logger: logger,
@@ -47,7 +70,7 @@ func NewServer(conn ...*sql.DB) *Server {
 	if len(conn) > 0 {
 		db = conn[0]
 	}
-	srv.registerRoutes(db)
+	srv.registerRoutes(db, jwtSecret, adminPassword)
 
 	return srv
 }
@@ -58,7 +81,8 @@ func (s *Server) Router() *chi.Mux {
 }
 
 // registerRoutes sets up all API routes.
-func (s *Server) registerRoutes(conn *sql.DB) {
+func (s *Server) registerRoutes(conn *sql.DB, jwtSecret, adminPassword string) {
+	// Public routes (no auth required)
 	checkers := map[string]health.ServiceChecker{
 		"postfix": &health.PostfixChecker{Address: "postfix:25", Timeout: 3 * time.Second},
 		"dovecot": &health.DovecotChecker{Address: "dovecot:143", Timeout: 3 * time.Second},
@@ -68,53 +92,77 @@ func (s *Server) registerRoutes(conn *sql.DB) {
 	healthSvc := health.NewService(checkers, "0.1.0")
 	s.router.Get("/health", newHealthHandler(healthSvc))
 
-	if conn != nil {
-		db := &database.DB{Conn: conn}
+	// Auth endpoint (public)
+	authHandler := NewAuthHandler(jwtSecret, adminPassword)
+	authHandler.RegisterRoutes(s.router)
 
-		postfixMgr := mail.NewPostfixManager(mail.PostfixConfig{
-			DomainsPath: "/etc/postfix/virtual_domains",
-			AliasesPath: "/etc/postfix/virtual_aliases",
-		}, &mail.ExecCommandExecutor{})
+	// Protected routes group
+	s.router.Group(func(r chi.Router) {
+		if !IsDevMode() {
+			r.Use(authmw.JWTAuth(jwtSecret))
+		}
 
-		aliasSvc := domain.NewAliasService(conn)
-		aliasHandler := NewAliasHandler(aliasSvc, postfixMgr)
-		aliasHandler.RegisterRoutes(s.router)
+		if conn != nil {
+			db := &database.DB{Conn: conn}
 
-		domainSvc := domain.NewDomainService(db)
-		domainsHandler := NewDomainsHandler(domainSvc, "/etc/oxmail/postfix/virtual_domains", postfixMgr)
-		domainsHandler.RegisterRoutes(s.router)
+			postfixMgr := mail.NewPostfixManager(mail.PostfixConfig{
+				DomainsPath: "/etc/postfix/virtual_domains",
+				AliasesPath: "/etc/postfix/virtual_aliases",
+			}, &mail.ExecCommandExecutor{})
 
-		userSvc := domain.NewUserService(db, domainSvc)
-		dovecotMgr := mail.NewDovecotManager(
-			"/etc/dovecot",
-			"/var/mail/vhosts",
-			&mail.ExecCommandExecutor{},
-		)
-		usersHandler := NewUsersHandler(userSvc, dovecotMgr)
-		usersHandler.RegisterRoutes(s.router)
-	}
+			aliasSvc := domain.NewAliasService(conn)
+			aliasHandler := NewAliasHandler(aliasSvc, postfixMgr)
+			aliasHandler.RegisterRoutes(r)
 
-	// Mail handler (IMAP bridge) — works without DB
-	imapBridge := mail.NewDovecotBridge("dovecot:143")
-	mailHandler := NewMailHandler(imapBridge)
-	mailHandler.RegisterRoutes(s.router)
+			domainSvc := domain.NewDomainService(db)
+			domainsHandler := NewDomainsHandler(domainSvc, "/etc/oxmail/postfix/virtual_domains", postfixMgr)
+			domainsHandler.RegisterRoutes(r)
 
-	smtpSender := mail.NewSMTPSender(mail.SMTPSenderConfig{
-		Host: "postfix",
-		Port: "587",
+			userSvc := domain.NewUserService(db, domainSvc)
+			dovecotMgr := mail.NewDovecotManager(
+				"/etc/dovecot",
+				"/var/mail/vhosts",
+				&mail.ExecCommandExecutor{},
+			)
+			usersHandler := NewUsersHandler(userSvc, dovecotMgr)
+			usersHandler.RegisterRoutes(r)
+		}
+
+		// Mail handler (IMAP bridge) — works without DB
+		imapBridge := mail.NewDovecotBridge("dovecot:143")
+		mailHandler := NewMailHandler(imapBridge)
+		mailHandler.RegisterRoutes(r)
+
+		smtpSender := mail.NewSMTPSender(mail.SMTPSenderConfig{
+			Host: "postfix",
+			Port: "587",
+		})
+		sendHandler := NewSendHandler(smtpSender)
+		if IsDevMode() {
+			sendHandler.rateLimit = 1000
+		}
+		sendHandler.RegisterRoutes(r)
 	})
-	sendHandler := NewSendHandler(smtpSender)
-	if IsDevMode() {
-		sendHandler.rateLimit = 1000
-	}
-	sendHandler.RegisterRoutes(s.router)
 
 	// Dev-only routes: test endpoints available only in dev mode
 	if IsDevMode() {
+		smtpSender := mail.NewSMTPSender(mail.SMTPSenderConfig{
+			Host: "postfix",
+			Port: "587",
+		})
 		devHandler := NewDevHandler(smtpSender)
 		devHandler.RegisterRoutes(s.router)
 		s.logger.Info("dev mode enabled: registered dev endpoints")
 	}
+}
+
+// generateRandomSecret creates a random 32-byte hex string for JWT signing.
+func generateRandomSecret() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "fallback-insecure-secret-change-me"
+	}
+	return hex.EncodeToString(b)
 }
 
 // ListenAndServe starts the HTTP server with graceful shutdown.

@@ -72,3 +72,56 @@
 
 ### Go path on this machine
 - Go binary at `C:\Program Files\Go\bin\go.exe` — not in default PATH for pwsh
+
+## Task — README + Documentation (2026-05-19)
+
+### Documentation structure
+- README.md: project overview, quickstart (3 commands), architecture mermaid diagram, tech stack, config reference, dev setup, CLI usage, API summary, contributing, license
+- docs/quickstart.md: step-by-step with expected output at each step
+- docs/architecture.md: mermaid diagram + data flow explanations (inbound, outbound, config change, log streaming)
+- docs/api.md: curl examples for key endpoints, links to OpenAPI spec
+
+### Writing conventions
+- Used "..." instead of em dashes for list item descriptions in README
+- Kept quickstart to exactly 3 commands (clone, cp .env, docker compose up)
+- Comparison table: Oxmail vs Mailcow vs docker-mailserver vs Mailu on RAM, containers, UI, setup time
+- All port numbers reference actual docker-compose.yml values (1025, 1143, 8080, 3000)
+- Architecture doc covers volumes, networks, resource limits, and key design decisions
+
+## Task — Performance Tuning (2026-05-19)
+
+### Memory budget (total limits: 1,344M < 1.5GB target)
+- Redis: 64M
+- Postfix: 256M
+- Dovecot: 256M
+- Rspamd: 384M (reduced from 512M)
+- API: 128M
+- Web: 256M
+
+### Postfix optimizations
+- `default_process_limit = 10` — sufficient for small team
+- `smtpd_client_connection_count_limit = 10` / `rate_limit = 30`
+- Disabled TLS session cache databases (saves memory, negligible perf impact for small scale)
+- `rm -rf /var/cache/apk/* /tmp/*` in Dockerfile
+
+### Dovecot optimizations
+- `auth_cache_size = 100` with 1 hour TTL — reduces auth lookups
+- `mail_max_userip_connections = 10` — prevents runaway connections
+- `login_max_processes_count = 16` / `default_process_limit = 20`
+
+### Rspamd optimizations (biggest win)
+- Workers = 1 (normal + controller) — single worker is fine for < 50 users
+- Disabled heavy modules: fuzzy_check, neural, chartable (via override.d)
+- `dns_max_requests = 16`, `dns_retransmits = 2`
+- `history_rows = 100` (reduced from default 200)
+- `task_timeout = 20s` on normal worker
+
+### .dockerignore files
+- Root .dockerignore for API build context (excludes .git, node_modules, .next, docs, tests)
+- web/.dockerignore (excludes node_modules, .next, coverage)
+- Per-service .dockerignore for postfix/dovecot/rspamd (minimal, excludes .md files)
+
+### Image sizes (unchanged from Task 10)
+- All Alpine-based, already < 200MB each
+- Rspamd is largest at ~77MB due to vectorscan/icu-data-full dependencies
+- `apk add --no-cache` already used; added explicit `rm -rf /var/cache/apk/*` for safety
