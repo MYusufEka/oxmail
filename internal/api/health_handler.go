@@ -3,16 +3,26 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/MYusufEka/oxmail/internal/health"
 )
 
-func handleHealth(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+// newHealthHandler creates an http.HandlerFunc that uses the health service.
+func newHealthHandler(svc *health.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result := svc.Check(r.Context())
 
-	response := map[string]string{
-		"status":  "ok",
-		"version": "0.1.0",
+		w.Header().Set("Content-Type", "application/json")
+
+		switch result.Status {
+		case "unhealthy":
+			w.WriteHeader(http.StatusServiceUnavailable)
+		case "degraded":
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+
+		json.NewEncoder(w).Encode(result)
 	}
-
-	json.NewEncoder(w).Encode(response)
 }

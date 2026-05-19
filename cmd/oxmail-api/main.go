@@ -32,7 +32,7 @@ func main() {
 
 	logger.Info("database connected", "path", dbPath)
 
-	srv := api.NewServer()
+	srv := api.NewServer(db.Conn)
 
 	if err := srv.ListenAndServe(port); err != nil {
 		logger.Error("server error", "error", err)

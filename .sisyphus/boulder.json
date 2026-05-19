@@ -8,7 +8,7 @@
       "plan_name": "dockerized-mail-server-beautiful",
       "status": "active",
       "started_at": "2026-05-19T15:35:57.484Z",
-      "updated_at": "2026-05-19T15:55:33.469Z",
+      "updated_at": "2026-05-19T16:32:38.004Z",
       "session_ids": [
         "ses_1bf1edafaffeW9KJdHFobPKjAL"
       ],
@@ -37,9 +37,24 @@
           "session_id": "ses_1bf185a0bffe4zBBcAmdSCXBG9",
           "agent": "Sisyphus-Junior",
           "category": "quick",
-          "updated_at": "2026-05-19T15:55:33.470Z",
+          "updated_at": "2026-05-19T15:58:11.778Z",
           "started_at": "2026-05-19T15:55:33.470Z",
-          "status": "running"
+          "status": "completed",
+          "ended_at": "2026-05-19T15:58:11.778Z",
+          "elapsed_ms": 158308
+        },
+        "todo:7": {
+          "task_key": "todo:7",
+          "task_label": "7",
+          "task_title": "Go API - domain CRUD + config generation",
+          "session_id": "ses_1bf096e08ffe4EVoo0YoywTmoh",
+          "agent": "Sisyphus-Junior",
+          "category": "deep",
+          "updated_at": "2026-05-19T16:32:38.004Z",
+          "started_at": "2026-05-19T16:20:49.384Z",
+          "status": "completed",
+          "ended_at": "2026-05-19T16:32:38.004Z",
+          "elapsed_ms": 708620
         }
       }
     }
@@ -47,7 +62,7 @@
   "active_plan": "C:\\Projects\\oxmail\\.sisyphus\\plans\\dockerized-mail-server-beautiful.md",
   "started_at": "2026-05-19T15:35:57.484Z",
   "status": "active",
-  "updated_at": "2026-05-19T15:55:33.469Z",
+  "updated_at": "2026-05-19T16:32:38.004Z",
   "session_ids": [
     "ses_1bf1edafaffeW9KJdHFobPKjAL"
   ],
@@ -76,9 +91,24 @@
       "session_id": "ses_1bf185a0bffe4zBBcAmdSCXBG9",
       "agent": "Sisyphus-Junior",
       "category": "quick",
-      "updated_at": "2026-05-19T15:55:33.470Z",
+      "updated_at": "2026-05-19T15:58:11.778Z",
       "started_at": "2026-05-19T15:55:33.470Z",
-      "status": "running"
+      "status": "completed",
+      "ended_at": "2026-05-19T15:58:11.778Z",
+      "elapsed_ms": 158308
+    },
+    "todo:7": {
+      "task_key": "todo:7",
+      "task_label": "7",
+      "task_title": "Go API - domain CRUD + config generation",
+      "session_id": "ses_1bf096e08ffe4EVoo0YoywTmoh",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-19T16:32:38.004Z",
+      "started_at": "2026-05-19T16:20:49.384Z",
+      "status": "completed",
+      "ended_at": "2026-05-19T16:32:38.004Z",
+      "elapsed_ms": 708620
     }
   },
   "agent": "atlas"

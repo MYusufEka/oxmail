@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/MYusufEka/oxmail/internal/database"
+	"github.com/MYusufEka/oxmail/internal/domain"
+	"github.com/MYusufEka/oxmail/internal/health"
 )
 
 // Server holds the HTTP server and router.
@@ -21,7 +25,7 @@ type Server struct {
 }
 
 // NewServer creates a new Server with configured routes and middleware.
-func NewServer() *Server {
+func NewServer(conn ...*sql.DB) *Server {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
@@ -38,7 +42,11 @@ func NewServer() *Server {
 		logger: logger,
 	}
 
-	srv.registerRoutes()
+	var db *sql.DB
+	if len(conn) > 0 {
+		db = conn[0]
+	}
+	srv.registerRoutes(db)
 
 	return srv
 }
@@ -49,8 +57,31 @@ func (s *Server) Router() *chi.Mux {
 }
 
 // registerRoutes sets up all API routes.
-func (s *Server) registerRoutes() {
-	s.router.Get("/health", handleHealth)
+func (s *Server) registerRoutes(conn *sql.DB) {
+	checkers := map[string]health.ServiceChecker{
+		"postfix": &health.PostfixChecker{Address: "postfix:25", Timeout: 3 * time.Second},
+		"dovecot": &health.DovecotChecker{Address: "dovecot:143", Timeout: 3 * time.Second},
+		"rspamd":  &health.RspamdChecker{URL: "http://rspamd:11333/ping", Timeout: 3 * time.Second},
+		"redis":   &health.RedisChecker{Address: "redis:6379", Timeout: 3 * time.Second},
+	}
+	healthSvc := health.NewService(checkers, "0.1.0")
+	s.router.Get("/health", newHealthHandler(healthSvc))
+
+	if conn != nil {
+		db := &database.DB{Conn: conn}
+
+		aliasSvc := domain.NewAliasService(conn)
+		aliasHandler := NewAliasHandler(aliasSvc)
+		aliasHandler.RegisterRoutes(s.router)
+
+		domainSvc := domain.NewDomainService(db)
+		domainsHandler := NewDomainsHandler(domainSvc, "/etc/oxmail/postfix/virtual_domains")
+		domainsHandler.RegisterRoutes(s.router)
+
+		userSvc := domain.NewUserService(db, domainSvc)
+		usersHandler := NewUsersHandler(userSvc)
+		usersHandler.RegisterRoutes(s.router)
+	}
 }
 
 // ListenAndServe starts the HTTP server with graceful shutdown.

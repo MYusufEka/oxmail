@@ -319,7 +319,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `docker-compose.yml`, `docker-compose.dev.yml`, `.env.example`, `Makefile`, `go.work`, all directories
   - Pre-commit: `docker compose config --quiet`
 
-- [ ] 2. Go API project setup + test infrastructure
+- [x] 2. Go API project setup + test infrastructure
 
   **What to do**:
   - Initialize Go module: `cmd/oxmail-api/` with `go.mod`
@@ -388,7 +388,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `cmd/oxmail-api/`, `internal/api/`, `go.mod`, `go.sum`, `.golangci.yml`
   - Pre-commit: `go test ./... && golangci-lint run`
 
-- [ ] 3. Next.js project setup + design system tokens
+- [x] 3. Next.js project setup + design system tokens
 
   **What to do**:
   - Initialize Next.js 14+ App Router project in `web/`
@@ -457,7 +457,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `web/`
   - Pre-commit: `cd web && npm run build && npx vitest run`
 
-- [ ] 4. Shared types/schemas (API contracts, domain models)
+- [x] 4. Shared types/schemas (API contracts, domain models)
 
   **What to do**:
   - Create `api-spec/openapi.yaml` with full API contract (domains, users, aliases, health, logs, DKIM)
@@ -520,7 +520,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `api-spec/openapi.yaml`, `internal/domain/models.go`, `web/src/types/api.ts`, `web/src/lib/schemas.ts`
   - Pre-commit: `go build ./internal/domain/ && cd web && npx tsc --noEmit`
 
-- [ ] 5. Postfix+Dovecot+Rspamd Docker images + base configs
+- [x] 5. Postfix+Dovecot+Rspamd Docker images + base configs
 
   **What to do**:
   - Create `docker/postfix/Dockerfile` based on official Postfix image
@@ -597,7 +597,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `docker/postfix/`, `docker/dovecot/`, `docker/rspamd/`, `configs/`
   - Pre-commit: `docker compose build postfix dovecot rspamd`
 
-- [ ] 6. Dev environment tooling (Makefile, scripts, .env)
+- [x] 6. Dev environment tooling (Makefile, scripts, .env)
 
   **What to do**:
   - Enhance `Makefile` with comprehensive targets:
@@ -676,7 +676,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `Makefile`, `scripts/`, `.env.example`, `.gitignore`
   - Pre-commit: `make -n dev && make -n test`
 
-- [ ] 7. Go API - domain CRUD + config generation
+- [x] 7. Go API - domain CRUD + config generation
 
   **What to do**:
   - TDD: Write tests first for domain CRUD operations
@@ -751,7 +751,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `internal/domain/domain_service.go`, `internal/api/domains_handler.go`, `internal/config/postfix_generator.go`
   - Pre-commit: `go test ./...`
 
-- [ ] 8. Go API - user/mailbox CRUD + password hashing
+- [x] 8. Go API - user/mailbox CRUD + password hashing
 
   **What to do**:
   - TDD: Write tests first for user CRUD operations
@@ -825,7 +825,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `internal/domain/user_service.go`, `internal/api/users_handler.go`, `internal/config/dovecot_users_generator.go`
   - Pre-commit: `go test ./...`
 
-- [ ] 9. Go API - alias management
+- [x] 9. Go API - alias management
 
   **What to do**:
   - TDD: Write tests first for alias CRUD
@@ -892,7 +892,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `internal/domain/alias_service.go`, `internal/api/aliases_handler.go`, `internal/config/postfix_aliases_generator.go`
   - Pre-commit: `go test ./...`
 
-- [ ] 10. Go API - DKIM key generation + management
+- [x] 10. Go API - DKIM key generation + management
 
   **What to do**:
   - TDD: Write tests first for DKIM operations
@@ -960,7 +960,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `internal/domain/dkim_service.go`, `internal/api/dkim_handler.go`, `internal/config/dkim_generator.go`
   - Pre-commit: `go test ./...`
 
-- [ ] 11. Go API - health check aggregator
+- [x] 11. Go API - health check aggregator
 
   **What to do**:
   - TDD: Write tests first for health aggregation
@@ -1035,7 +1035,7 @@ Max Concurrent: 8 (Wave 2)
   - Files: `internal/domain/health_service.go`, `internal/api/health_handler.go`
   - Pre-commit: `go test ./...`
 
-- [ ] 12. Go API - real-time log streaming via WebSocket
+- [x] 12. Go API - real-time log streaming via WebSocket
 
   **What to do**:
   - TDD: Write tests for log streaming
