@@ -1,0 +1,221 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/*
+ * Oxmail Design Tokens
+ * Dark-first theme: Linear/Vercel-inspired with cyan/teal cyber accents
+ */
+
+:root {
+  --radius: 0.5rem;
+
+  /* Dark theme as default */
+  --background: hsl(0 0% 4%);
+  --foreground: hsl(0 0% 96%);
+
+  --card: hsl(0 0% 6%);
+  --card-foreground: hsl(0 0% 96%);
+
+  --popover: hsl(0 0% 6%);
+  --popover-foreground: hsl(0 0% 96%);
+
+  --primary: hsl(185 85% 55%);
+  --primary-foreground: hsl(0 0% 4%);
+
+  --secondary: hsl(0 0% 12%);
+  --secondary-foreground: hsl(0 0% 96%);
+
+  --muted: hsl(0 0% 12%);
+  --muted-foreground: hsl(0 0% 55%);
+
+  --accent: hsl(185 85% 55%);
+  --accent-foreground: hsl(0 0% 4%);
+
+  --destructive: hsl(0 72% 51%);
+  --destructive-foreground: hsl(0 0% 96%);
+
+  --border: hsl(0 0% 14%);
+  --input: hsl(0 0% 14%);
+  --ring: hsl(185 85% 55%);
+
+  --sidebar: hsl(0 0% 5%);
+  --sidebar-foreground: hsl(0 0% 96%);
+  --sidebar-accent: hsl(0 0% 10%);
+  --sidebar-accent-foreground: hsl(0 0% 96%);
+  --sidebar-border: hsl(0 0% 14%);
+  --sidebar-ring: hsl(185 85% 55%);
+}
+
+/* Light theme override (opt-in only) */
+.light {
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(0 0% 4%);
+
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(0 0% 4%);
+
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(0 0% 4%);
+
+  --primary: hsl(185 85% 40%);
+  --primary-foreground: hsl(0 0% 100%);
+
+  --secondary: hsl(0 0% 96%);
+  --secondary-foreground: hsl(0 0% 10%);
+
+  --muted: hsl(0 0% 96%);
+  --muted-foreground: hsl(0 0% 45%);
+
+  --accent: hsl(185 85% 40%);
+  --accent-foreground: hsl(0 0% 100%);
+
+  --destructive: hsl(0 72% 51%);
+  --destructive-foreground: hsl(0 0% 100%);
+
+  --border: hsl(0 0% 90%);
+  --input: hsl(0 0% 90%);
+  --ring: hsl(185 85% 40%);
+
+  --sidebar: hsl(0 0% 98%);
+  --sidebar-foreground: hsl(0 0% 4%);
+  --sidebar-accent: hsl(0 0% 94%);
+  --sidebar-accent-foreground: hsl(0 0% 4%);
+  --sidebar-border: hsl(0 0% 90%);
+  --sidebar-ring: hsl(185 85% 40%);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/*
+ * Global Transitions & Animations
+ * Fast micro-interactions: 100-200ms (Linear.app reference)
+ */
+
+/* Focus ring for all interactive elements */
+*:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+  border-radius: var(--radius);
+}
+
+/* Smooth transitions on interactive elements */
+a,
+button,
+[role="button"],
+input,
+select,
+textarea,
+[tabindex]:not([tabindex="-1"]) {
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+}
+
+/* Status dot pulse animation */
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.8);
+  }
+}
+
+/* Toast slide-in from right */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Subtle fade-in for page content */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Card hover interaction */
+[data-slot="card"] {
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+[data-slot="card"]:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Table row hover */
+[data-slot="table-row"] {
+  transition: background-color 100ms ease;
+}
+
+/* Page content fade-in */
+main > * {
+  animation: fade-in 200ms ease-out;
+}
+
+/* Toast animation override */
+[data-sonner-toaster] [data-sonner-toast] {
+  animation: slide-in-right 200ms ease-out;
+}
+
+/* Reduced motion: respect user preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,9 @@
+# Web .dockerignore
+.git
+node_modules
+.next
+.env
+.env.*
+*.md
+tests
+coverage
