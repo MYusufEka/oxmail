@@ -50,6 +50,15 @@ test-results/
 
 # Build artifacts
 bin/
+cmd/oxmail-api/oxmail-api
+cmd/oxmail/oxmail
+
+# Temp/snapshot files
+*-snapshot.yml
+*-snapshot.txt
+webui-snapshot.txt
+aliases-page-snapshot.yml
+logs/
 
 # Agent workspace (plans, evidence, run-continuation)
 .sisyphus/
