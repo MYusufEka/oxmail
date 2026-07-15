@@ -1,7 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { MailMessage, InboxResponse, MailFolder, FoldersResponse } from "@/types/api";
+import type { MailMessage, MailThread, InboxResponse, MailFolder, FoldersResponse, ThreadsResponse } from "@/types/api";
 
 const mockMessages: MailMessage[] = [
   {
@@ -49,6 +49,7 @@ let mockMessageData: MailMessage | undefined;
 let mockMessageLoading = false;
 let mockFolderData: InboxResponse | undefined;
 let mockFolderLoading = false;
+let mockThreadsData: ThreadsResponse | undefined;
 
 vi.mock("@/hooks/use-mail", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/use-mail")>();
@@ -65,6 +66,10 @@ vi.mock("@/hooks/use-mail", async (importOriginal) => {
     useFolderMessages: () => ({
       data: mockFolderData ?? mockInboxData,
       isLoading: mockFolderLoading,
+    }),
+    useThreads: () => ({
+      data: mockThreadsData,
+      isLoading: false,
     }),
     useMessage: () => ({
       data: mockMessageData,
@@ -328,5 +333,28 @@ describe("WebmailPage", () => {
     fireEvent.keyDown(document, { key: "j" });
     const rows = screen.getAllByTestId("message-row");
     expect(rows[0].getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("renders threads toggle button", () => {
+    renderWithProvider(<WebmailPage />);
+    expect(screen.getByTestId("view-toggle-threads")).toBeInTheDocument();
+  });
+
+  it("switches to thread view when toggle clicked", () => {
+    mockThreadsData = {
+      threads: [
+        {
+          threadId: "hello world",
+          subject: "Hello World",
+          messages: mockMessages.slice(0, 2),
+          lastDate: "2024-01-15T11:00:00.000Z",
+          participantCount: 2,
+          unreadCount: 1,
+        },
+      ],
+    };
+    renderWithProvider(<WebmailPage />);
+    fireEvent.click(screen.getByTestId("view-toggle-threads"));
+    expect(screen.getByTestId("thread-list")).toBeInTheDocument();
   });
 });
