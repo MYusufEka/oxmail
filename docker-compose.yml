@@ -110,6 +110,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      - OXMAIL_MODE=dev
     networks:
       - oxmail-internal
       - oxmail-external
