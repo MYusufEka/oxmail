@@ -1,7 +1,7 @@
 # Dovecot main configuration template
 # Rendered by oxmail-api — do NOT edit directly
 
-protocols = imap lmtp
+protocols = imap lmtp pop3
 
 # Logging
 log_path = /dev/stderr
@@ -59,11 +59,60 @@ service imap-login {
   }
 }
 
-# Auth include
-!include conf.d/10-auth.conf
+# POP3 service added by entrypoint fallback
+service pop3-login {
+  inet_listener pop3 {
+    port = 110
+  }
+  inet_listener pop3s {
+    port = 995
+    ssl = yes
+  }
+}
 
-# Mail include
-!include conf.d/10-mail.conf
+# Quota plugin — per-user mailbox quotas enforced via passwd-file userdb extra fields
+plugin {
+  quota = maildir:User quota
+  quota_warning = storage=95%% quota-warning %u
+
+  # Sieve (Pigeonhole) — per-user script storage
+  sieve = file:/var/lib/sieve/scripts/%d/%n.sieve
+  sieve_global_dir = /var/lib/sieve/global/
+
+  # Global spam filter — runs before per-user scripts, files Rspamd-flagged
+  # mail (X-Spam-Flag / X-Spam-Score headers) into Junk automatically.
+  sieve_before = /var/lib/sieve/global/spam-global.sieve
+
+  # Full-text search (Xapian/flatcurve)
+  fts = flatcurve
+  fts_autoindex = yes
+  fts_languages = en
+  fts_tokenizers = generic email-address
+  flatcurve = partial=3
+}
+
+# IMAP protocol — enable IMAP quota extension (RFC 2087)
+protocol imap {
+  mail_plugins = $mail_plugins quota imap_quota fts fts_flatcurve
+}
+
+# LMTP — quota enforcement + FTS indexing on delivery
+protocol lmtp {
+  mail_plugins = $mail_plugins quota sieve fts fts_flatcurve
+}
+
+# Quota warning service — runs script when user exceeds 95% storage
+service quota-warning {
+  executable = script /usr/local/bin/quota-warning.sh
+  unix_listener quota-warning {
+    user = vmail
+    group = vmail
+    mode = 0660
+  }
+}
+
+# Auth include
+!include conf.d/*.conf
 
 # LMTP service for Postfix delivery
 service lmtp {
