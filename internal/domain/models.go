@@ -213,6 +213,53 @@ type UpdateContactRequest struct {
 	Phone *string `json:"phone,omitempty"`
 }
 
+// AuditEntry represents a single audit log record.
+type AuditEntry struct {
+	ID         int64     `json:"id"`
+	Actor      string    `json:"actor"`
+	Action     string    `json:"action"`
+	TargetType string    `json:"targetType"`
+	TargetID   string    `json:"targetId"`
+	Detail     string    `json:"detail"`
+	CreatedAt  time.Time `json:"createdAt"`
+}
+
+// Bounce represents a recorded email bounce event.
+type Bounce struct {
+	ID           int64     `json:"id"`
+	Recipient    string    `json:"recipient"`
+	Sender       string    `json:"sender"`
+	Subject      string    `json:"subject"`
+	BounceType   string    `json:"bounceType"`
+	ErrorMessage string    `json:"errorMessage"`
+	BouncedAt    time.Time `json:"bouncedAt"`
+}
+
+// BounceFilter filters bounce list queries.
+type BounceFilter struct {
+	Recipient  string
+	BounceType string
+	Limit      int
+	Offset     int
+}
+
+// StatSummary holds aggregate mail statistics.
+type StatSummary struct {
+	TotalSent       int64 `json:"totalSent"`
+	TotalReceived   int64 `json:"totalReceived"`
+	TotalBounced    int64 `json:"totalBounced"`
+	TotalSpamCaught int64 `json:"totalSpamCaught"`
+}
+
+// DailyStat holds per-day mail statistics.
+type DailyStat struct {
+	Date       string `json:"date"`
+	Sent       int64  `json:"sent"`
+	Received   int64  `json:"received"`
+	Bounced    int64  `json:"bounced"`
+	SpamCaught int64  `json:"spamCaught"`
+}
+
 // ErrorResponse is the standard error envelope.
 type ErrorResponse struct {
 	Error ErrorDetail `json:"error"`
