@@ -45,7 +45,15 @@ coverage/
 *.cover
 *.prof
 playwright-report/
+.playwright-mcp/
 test-results/
 
 # Build artifacts
 bin/
+
+# Agent workspace (plans, evidence, run-continuation)
+.sisyphus/
+.omo/
+
+# Graphify knowledge graph output
+graphify-out/
