@@ -52,6 +52,7 @@ export default function ProductionPage() {
             publicIp={OXMAIL_PUBLIC_IP}
             tlsEnabled={OXMAIL_TLS_ENABLED}
             outboundRateLimit={OXMAIL_RATE_LIMIT}
+            isDevMode={isDevMode}
           />
         </div>
       </div>

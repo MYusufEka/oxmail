@@ -117,7 +117,7 @@ describe("ComposeDialog", () => {
 
     render(
       <Wrapper>
-        <ComposeDialog open={true} onOpenChange={() => {}} />
+        <ComposeDialog open={true} onOpenChange={() => {}} currentUserEmail="test@local.test" />
       </Wrapper>,
     );
 
@@ -132,7 +132,7 @@ describe("ComposeDialog", () => {
 
     render(
       <Wrapper>
-        <ComposeDialog open={true} onOpenChange={() => {}} />
+        <ComposeDialog open={true} onOpenChange={() => {}} currentUserEmail="test@local.test" />
       </Wrapper>,
     );
 
@@ -152,6 +152,7 @@ describe("ComposeDialog", () => {
           onOpenChange={() => {}}
           initialTo={["sender@test.com"]}
           initialSubject="Re: Hello"
+          currentUserEmail="test@local.test"
         />
       </Wrapper>,
     );
@@ -170,6 +171,7 @@ describe("ComposeDialog", () => {
           open={true}
           onOpenChange={() => {}}
           initialTo={["someone@test.com"]}
+          currentUserEmail="test@local.test"
         />
       </Wrapper>,
     );
@@ -198,6 +200,7 @@ describe("ComposeDialog", () => {
           onOpenChange={onOpenChange}
           initialTo={["recipient@test.com"]}
           initialSubject="Test Subject"
+          currentUserEmail="test@local.test"
         />
       </Wrapper>,
     );
@@ -214,7 +217,7 @@ describe("ComposeDialog", () => {
 
     render(
       <Wrapper>
-        <ComposeDialog open={true} onOpenChange={() => {}} />
+        <ComposeDialog open={true} onOpenChange={() => {}} currentUserEmail="test@local.test" />
       </Wrapper>,
     );
 

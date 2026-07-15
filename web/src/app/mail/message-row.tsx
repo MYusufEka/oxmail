@@ -23,16 +23,29 @@ function formatDate(dateStr: string): string {
   });
 }
 
-function extractSenderName(from: string): string {
-  const match = from.match(/^"?([^"<]+)"?\s*</);
-  if (match) return match[1].trim();
-  return from.split("@")[0];
+function extractSenderName(from: string, contactsMap?: Record<string, string>): string {
+  // Extract bare email from "Display Name <email>" or just "email"
+  const emailMatch = from.match(/<([^>]+)>/);
+  const email = emailMatch ? emailMatch[1] : from;
+
+  // Try contact name lookup first
+  if (contactsMap && contactsMap[email]) {
+    return contactsMap[email];
+  }
+
+  // Try display name from "Display Name <email>"
+  const nameMatch = from.match(/^"?([^"<]+)"?\s*</);
+  if (nameMatch) return nameMatch[1].trim();
+
+  // Fallback to email local part
+  return email.split("@")[0];
 }
 
 interface MessageRowProps {
   message: MailMessage;
   selected: boolean;
   indented?: boolean;
+  contactsMap?: Record<string, string>;
   onSelect: (id: number) => void;
 }
 
@@ -40,6 +53,7 @@ export function MessageRow({
   message,
   selected,
   indented = false,
+  contactsMap,
   onSelect,
 }: MessageRowProps) {
   const hasAttachment = message.bodyHtml?.includes("attachment") ?? false;
@@ -79,7 +93,7 @@ export function MessageRow({
             : "font-medium text-foreground",
         )}
       >
-        {extractSenderName(message.from)}
+        {extractSenderName(message.from, contactsMap)}
       </span>
 
       {/* Subject */}

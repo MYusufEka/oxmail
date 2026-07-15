@@ -1,7 +1,6 @@
 "use client";
 
 import { Paperclip, Loader2 } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
 import type { MailMessage } from "@/types/api";
 
 function formatFullDate(dateStr: string): string {
@@ -74,18 +73,20 @@ export function MessagePreview({ message, isLoading }: MessagePreviewProps) {
     >
       {/* Header */}
       <div className="shrink-0 border-b border-border px-5 py-4">
-        <h3 className="text-base font-semibold text-foreground">
+        <h3 className="truncate text-base font-semibold text-foreground">
           {message.subject}
         </h3>
-        <div className="mt-2 flex items-center gap-2 text-sm">
-          <span className="font-medium text-foreground">{message.from}</span>
-          <span className="text-muted-foreground">→</span>
-          <span className="text-muted-foreground">
+        <div className="mt-2 flex min-w-0 items-center gap-2 text-sm">
+          <span className="min-w-0 shrink truncate font-medium text-foreground">
+            {message.from}
+          </span>
+          <span className="shrink-0 text-muted-foreground">→</span>
+          <span className="min-w-0 shrink truncate text-muted-foreground">
             {message.to.join(", ")}
           </span>
         </div>
         {message.cc && message.cc.length > 0 && (
-          <div className="mt-1 text-xs text-muted-foreground">
+          <div className="mt-1 truncate text-xs text-muted-foreground">
             CC: {message.cc.join(", ")}
           </div>
         )}

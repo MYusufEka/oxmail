@@ -8,7 +8,6 @@ import type { MailMessage } from "@/types/api";
 function highlightText(text: string, query: string): React.ReactNode {
   if (!query.trim()) return text;
 
-  // Strip filter prefixes from query for highlighting
   const cleanQuery = query
     .replace(/\b(from|to|subject|has):\S+/gi, "")
     .trim();
@@ -40,6 +39,7 @@ interface SearchResultsProps {
   query: string;
   selectedId: number | null;
   isLoading: boolean;
+  contactsMap?: Record<string, string>;
   onSelect: (id: number) => void;
 }
 
@@ -48,6 +48,7 @@ export function SearchResults({
   query,
   selectedId,
   isLoading,
+  contactsMap,
   onSelect,
 }: SearchResultsProps) {
   if (isLoading) {
@@ -101,6 +102,7 @@ export function SearchResults({
           message={message}
           query={query}
           selected={message.id === selectedId}
+          contactsMap={contactsMap}
           onSelect={onSelect}
         />
       ))}
@@ -112,6 +114,7 @@ interface SearchResultRowProps {
   message: MailMessage;
   query: string;
   selected: boolean;
+  contactsMap?: Record<string, string>;
   onSelect: (id: number) => void;
 }
 
@@ -119,9 +122,9 @@ function SearchResultRow({
   message,
   query,
   selected,
+  contactsMap,
   onSelect,
 }: SearchResultRowProps) {
-  // Use MessageRow for consistent styling, but wrap subject with highlighting
   return (
     <div data-testid="search-result-row">
       <MessageRow
@@ -130,9 +133,9 @@ function SearchResultRow({
           subject: message.subject,
         }}
         selected={selected}
+        contactsMap={contactsMap}
         onSelect={onSelect}
       />
-      {/* Snippet with highlighted matching text */}
       {message.bodyText && (
         <div className="border-b border-border/50 px-4 pb-2 pl-12">
           <p className="truncate text-xs text-muted-foreground">

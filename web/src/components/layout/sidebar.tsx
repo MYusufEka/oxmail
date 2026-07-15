@@ -13,6 +13,7 @@ import {
   Shield,
   PanelLeftClose,
   PanelLeft,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -94,6 +95,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             const linkContent = (
               <Link
                 href={item.href}
+                aria-current={isActive ? "page" : undefined}
                 className={cn(
                   "relative flex items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium transition-all duration-150",
                   isActive
@@ -102,7 +104,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 )}
               >
                 {isActive && (
-                  <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-primary animate-[fade-in_150ms_ease-out]" />
+                  <span className="absolute left-0.5 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-primary animate-[fade-in_150ms_ease-out]" />
                 )}
                 <item.icon className="size-4 shrink-0" />
                 {!collapsed && <span>{item.label}</span>}
@@ -124,6 +126,45 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           })}
         </nav>
       </ScrollArea>
+
+      <Separator className="bg-sidebar-border" />
+
+      <div className="px-2 py-2">
+        {(() => {
+          const isActive = pathname === "/account/change-password";
+          const linkContent = (
+            <Link
+              href="/account/change-password"
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "relative flex items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium transition-all duration-150",
+                isActive
+                  ? "bg-sidebar-accent text-primary"
+                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              )}
+            >
+              {isActive && (
+                <span className="absolute left-0.5 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-primary animate-[fade-in_150ms_ease-out]" />
+              )}
+              <Lock className="size-4 shrink-0" />
+              {!collapsed && <span>Change Password</span>}
+            </Link>
+          );
+
+          if (collapsed) {
+            return (
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
+                <TooltipContent side="right" sideOffset={8}>
+                  Change Password
+                </TooltipContent>
+              </Tooltip>
+            );
+          }
+
+          return linkContent;
+        })()}
+      </div>
     </aside>
   );
 }

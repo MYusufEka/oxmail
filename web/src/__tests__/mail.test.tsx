@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { MailMessage, PaginatedResponse } from "@/types/api";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { MailMessage, InboxResponse, MailFolder, FoldersResponse } from "@/types/api";
 
 const mockMessages: MailMessage[] = [
   {
@@ -35,22 +36,57 @@ const mockMessages: MailMessage[] = [
   },
 ];
 
-let mockInboxData: PaginatedResponse<MailMessage> | undefined;
+const mockFolders: MailFolder[] = [
+  { name: "INBOX", delimiter: "/", unread: 2, total: 3 },
+  { name: "Sent", delimiter: "/", unread: 0, total: 0 },
+  { name: "Drafts", delimiter: "/", unread: 0, total: 0 },
+  { name: "Trash", delimiter: "/", unread: 0, total: 0 },
+];
+
+let mockInboxData: InboxResponse | undefined;
 let mockInboxLoading = false;
 let mockMessageData: MailMessage | undefined;
 let mockMessageLoading = false;
+let mockFolderData: InboxResponse | undefined;
+let mockFolderLoading = false;
 
-vi.mock("@/hooks/use-mail", () => ({
-  useInbox: () => ({
-    data: mockInboxData,
-    isLoading: mockInboxLoading,
+vi.mock("@/hooks/use-mail", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/hooks/use-mail")>();
+  return {
+    ...actual,
+    useMailFolders: () => ({
+      data: { folders: mockFolders } as FoldersResponse,
+      isLoading: false,
+    }),
+    useInbox: () => ({
+      data: mockInboxData,
+      isLoading: mockInboxLoading,
+    }),
+    useFolderMessages: () => ({
+      data: mockFolderData ?? mockInboxData,
+      isLoading: mockFolderLoading,
+    }),
+    useMessage: () => ({
+      data: mockMessageData,
+      isLoading: mockMessageLoading,
+    }),
+    useSendMail: () => ({ mutate: vi.fn() }),
+    useCreateFolder: () => ({ mutate: vi.fn(), isPending: false }),
+    useDeleteFolder: () => ({ mutate: vi.fn(), isPending: false }),
+    useRenameFolder: () => ({ mutate: vi.fn(), isPending: false }),
+    useMoveMessage: () => ({ mutate: vi.fn(), isPending: false }),
+  };
+});
+
+vi.mock("@/hooks/use-domains", () => ({
+  useDomains: () => ({
+    data: { data: [{ id: 1, name: "local.test", active: true, createdAt: "", updatedAt: "" }], pagination: { page: 1, limit: 100, total: 1 } },
   }),
-  useMessage: () => ({
-    data: mockMessageData,
-    isLoading: mockMessageLoading,
-  }),
-  useSendMail: () => ({
-    mutate: vi.fn(),
+}));
+
+vi.mock("@/hooks/use-users", () => ({
+  useUsers: () => ({
+    data: { data: [{ id: 1, email: "alice@local.test", domainId: 1, displayName: "Alice", quota: 1024, active: true, createdAt: "", updatedAt: "" }], pagination: { page: 1, limit: 50, total: 1 } },
   }),
 }));
 
@@ -60,6 +96,11 @@ vi.mock("@/lib/api-client", () => ({
     toggleRead: vi.fn().mockResolvedValue(undefined),
     trashMessage: vi.fn().mockResolvedValue(undefined),
   },
+}));
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => ({ get: () => null }),
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
 }));
 
 import { MessageRow } from "@/app/mail/message-row";
@@ -222,56 +263,70 @@ describe("MessagePreview", () => {
 describe("WebmailPage", () => {
   beforeEach(() => {
     mockInboxData = {
-      data: mockMessages,
+      messages: mockMessages,
       pagination: { page: 1, limit: 50, total: 3 },
     };
     mockInboxLoading = false;
+    mockFolderData = {
+      messages: mockMessages,
+      pagination: { page: 1, limit: 50, total: 3 },
+    };
+    mockFolderLoading = false;
     mockMessageData = undefined;
     mockMessageLoading = false;
   });
 
+  const renderWithProvider = (ui: React.ReactNode) => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+    );
+  };
+
   it("renders webmail header", () => {
-    render(<WebmailPage />);
+    renderWithProvider(<WebmailPage />);
     expect(screen.getByText("Webmail")).toBeInTheDocument();
   });
 
   it("renders inbox folder in sidebar", () => {
-    render(<WebmailPage />);
-    expect(screen.getByText("Inbox")).toBeInTheDocument();
+    renderWithProvider(<WebmailPage />);
+    expect(screen.getByText("INBOX")).toBeInTheDocument();
+  });
+
+  it("renders additional folders in sidebar", () => {
+    renderWithProvider(<WebmailPage />);
+    expect(screen.getByText("Sent")).toBeInTheDocument();
+    expect(screen.getByText("Drafts")).toBeInTheDocument();
+    expect(screen.getByText("Trash")).toBeInTheDocument();
   });
 
   it("renders message list", () => {
-    render(<WebmailPage />);
+    renderWithProvider(<WebmailPage />);
     expect(screen.getByTestId("message-list")).toBeInTheDocument();
   });
 
   it("shows unread count in sidebar", () => {
-    render(<WebmailPage />);
-    // 2 unread messages (id 1 and 3)
+    renderWithProvider(<WebmailPage />);
     expect(screen.getByText("2")).toBeInTheDocument();
   });
 
   it("shows empty preview when no message selected", () => {
-    render(<WebmailPage />);
+    renderWithProvider(<WebmailPage />);
     expect(screen.getByTestId("message-preview-empty")).toBeInTheDocument();
   });
 
   it("selects message on click", () => {
     mockMessageData = mockMessages[0];
-    render(<WebmailPage />);
+    renderWithProvider(<WebmailPage />);
     const rows = screen.getAllByTestId("message-row");
     fireEvent.click(rows[0]);
-    // After click, the preview should show (re-render needed in real app)
-    // We verify the row gets selected styling
     expect(rows[0].getAttribute("aria-selected")).toBe("true");
   });
 
   it("navigates messages with j/k keys", () => {
-    render(<WebmailPage />);
-    // Press j to select first message
+    renderWithProvider(<WebmailPage />);
     fireEvent.keyDown(document, { key: "j" });
     const rows = screen.getAllByTestId("message-row");
-    // First message should be selected after j
     expect(rows[0].getAttribute("aria-selected")).toBe("true");
   });
 });

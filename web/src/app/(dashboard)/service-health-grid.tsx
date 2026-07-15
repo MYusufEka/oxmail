@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useHealth } from "@/hooks/use-health";
-import type { ServiceHealth } from "@/types/api";
+import type { ServiceHealthEntry } from "@/types/api";
 
 const SERVICE_LABELS: Record<string, string> = {
   postfix: "Postfix",
@@ -14,34 +14,31 @@ const SERVICE_LABELS: Record<string, string> = {
   api: "API",
 };
 
-function statusColor(status: ServiceHealth["status"]): string {
+function statusColor(status: ServiceHealthEntry["status"]): string {
   switch (status) {
-    case "up":
+    case "healthy":
       return "bg-emerald-500";
-    case "down":
-      return "bg-red-500";
     default:
-      return "bg-yellow-500";
+      return "bg-red-500";
   }
 }
 
-function statusBadgeVariant(status: ServiceHealth["status"]) {
+function statusBadgeVariant(status: ServiceHealthEntry["status"]) {
   switch (status) {
-    case "up":
+    case "healthy":
       return "secondary" as const;
-    case "down":
-      return "destructive" as const;
     default:
-      return "outline" as const;
+      return "destructive" as const;
   }
 }
 
 interface ServiceCardProps {
   name: string;
-  health: ServiceHealth;
+  health: ServiceHealthEntry;
 }
 
 function ServiceCard({ name, health }: ServiceCardProps) {
+  const isHealthy = health.status === "healthy";
   return (
     <Card data-testid="service-card" className="gap-3 py-4">
       <CardHeader className="flex-row items-center justify-between gap-2 px-4 py-0">
@@ -49,12 +46,12 @@ function ServiceCard({ name, health }: ServiceCardProps) {
           {SERVICE_LABELS[name] ?? name}
         </CardTitle>
         <Badge variant={statusBadgeVariant(health.status)} className="text-xs">
-          {health.status === "up" ? "Healthy" : "Down"}
+          {isHealthy ? "Healthy" : "Down"}
         </Badge>
       </CardHeader>
       <CardContent className="flex items-center gap-3 px-4">
         <span className="relative flex size-2.5">
-          {health.status === "up" && (
+          {isHealthy && (
             <span
               className={`absolute inline-flex size-full rounded-full opacity-75 ${statusColor(health.status)}`}
               style={{ animation: "pulse-dot 2s ease-in-out infinite" }}
@@ -100,18 +97,15 @@ export function ServiceHealthGrid() {
     );
   }
 
-  const services = Object.entries(data.services);
-
-  // Add API as a virtual service (always up if we got a response)
-  const allServices: [string, ServiceHealth][] = [
-    ...services,
-    ["api", { status: "up" as const, latencyMs: 0 }],
+  const allServices: ServiceHealthEntry[] = [
+    ...data.services,
+    { name: "api", status: "healthy" as const, latencyMs: 0 },
   ];
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-      {allServices.map(([name, health]) => (
-        <ServiceCard key={name} name={name} health={health} />
+      {allServices.map((svc) => (
+        <ServiceCard key={svc.name} name={svc.name} health={svc} />
       ))}
     </div>
   );

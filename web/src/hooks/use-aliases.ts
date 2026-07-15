@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, type PaginationParams } from "@/lib/api-client";
-import type { Alias, CreateAliasRequest, PaginatedResponse } from "@/types/api";
+import type { Alias, CreateAliasRequest, UpdateAliasRequest, PaginatedResponse } from "@/types/api";
 
 export function useAliases(domainId: number, params?: PaginationParams) {
   return useQuery({
@@ -39,6 +39,49 @@ export function useCreateAlias(domainId: number) {
             ...old,
             data: [...old.data, optimistic],
             pagination: { ...old.pagination, total: old.pagination.total + 1 },
+          };
+        },
+      );
+
+      return { previousAliases };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousAliases) {
+        for (const [queryKey, data] of context.previousAliases) {
+          queryClient.setQueryData(queryKey, data);
+        }
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["aliases", domainId] });
+    },
+  });
+}
+
+export function useUpdateAlias(domainId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ aliasId, payload }: { aliasId: number; payload: UpdateAliasRequest }) =>
+      apiClient.updateAlias(domainId, aliasId, payload),
+    onMutate: async ({ aliasId, payload }) => {
+      await queryClient.cancelQueries({ queryKey: ["aliases", domainId] });
+
+      const previousAliases = queryClient.getQueriesData<PaginatedResponse<Alias>>({
+        queryKey: ["aliases", domainId],
+      });
+
+      queryClient.setQueriesData<PaginatedResponse<Alias>>(
+        { queryKey: ["aliases", domainId] },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            data: old.data.map((alias) =>
+              alias.id === aliasId
+                ? { ...alias, sourceAddress: payload.sourceAddress, destinationAddress: payload.destinationAddress }
+                : alias,
+            ),
           };
         },
       );

@@ -20,6 +20,7 @@ interface ComposeDialogProps {
   onOpenChange: (open: boolean) => void;
   initialTo?: string[];
   initialSubject?: string;
+  currentUserEmail: string;
 }
 
 interface Attachment {
@@ -32,6 +33,7 @@ export function ComposeDialog({
   onOpenChange,
   initialTo = [],
   initialSubject = "",
+  currentUserEmail,
 }: ComposeDialogProps) {
   const [to, setTo] = useState<string[]>(initialTo);
   const [cc, setCc] = useState<string[]>([]);
@@ -78,7 +80,7 @@ export function ComposeDialog({
 
     sendMail.mutate(
       {
-        from: "alice@local.test",
+        from: currentUserEmail,
         to,
         cc: cc.length > 0 ? cc : undefined,
         subject,
@@ -96,7 +98,7 @@ export function ComposeDialog({
         },
       }
     );
-  }, [to, cc, subject, body, sendMail, resetForm, onOpenChange]);
+  }, [to, cc, subject, body, sendMail, resetForm, onOpenChange, currentUserEmail]);
 
   const handleAttachment = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {

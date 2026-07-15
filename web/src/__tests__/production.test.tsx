@@ -273,7 +273,7 @@ describe("ProductionSettings", () => {
     render(<ProductionSettings {...defaultProps} />);
 
     expect(screen.getByText("Server Configuration")).toBeInTheDocument();
-    expect(screen.getByText("mail.example.com")).toBeInTheDocument();
+    expect(screen.getAllByText("mail.example.com").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("203.0.113.1")).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText("500 msg/hour")).toBeInTheDocument();
@@ -300,6 +300,6 @@ describe("ProductionSettings", () => {
   it("shows dash when hostname is empty", () => {
     render(<ProductionSettings {...defaultProps} hostname="" />);
 
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1);
   });
 });

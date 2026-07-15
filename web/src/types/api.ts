@@ -12,6 +12,7 @@ export interface User {
   domainId: number;
   displayName?: string;
   quota: number;
+  storageUsed?: number;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -35,12 +36,15 @@ export interface DKIMKey {
 
 export interface HealthStatus {
   status: "healthy" | "degraded" | "unhealthy";
-  services: {
-    postfix: ServiceHealth;
-    dovecot: ServiceHealth;
-    rspamd: ServiceHealth;
-    redis: ServiceHealth;
-  };
+  version: string;
+  uptime: string;
+  services: ServiceHealthEntry[];
+}
+
+export interface ServiceHealthEntry {
+  name: string;
+  status: "healthy" | "unhealthy";
+  latencyMs: number;
 }
 
 export interface ServiceHealth {
@@ -54,6 +58,13 @@ export interface LogEntry {
   service: "postfix" | "dovecot" | "rspamd" | "api";
   level: "debug" | "info" | "warn" | "error";
   message: string;
+}
+
+export interface LogsResponse {
+  entries: LogEntry[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface MailMessage {
@@ -79,6 +90,22 @@ export interface PaginatedResponse<T> {
   pagination: Pagination;
 }
 
+export interface InboxResponse {
+  messages: MailMessage[];
+  pagination: Pagination;
+}
+
+export interface MailFolder {
+  name: string;
+  delimiter: string;
+  unread: number;
+  total: number;
+}
+
+export interface FoldersResponse {
+  folders: MailFolder[];
+}
+
 export interface DNSRecord {
   domain: string;
   type: "MX" | "TXT" | "CNAME" | "A";
@@ -100,6 +127,16 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface ChangePasswordRequest {
+  email: string;
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface ChangePasswordResponse {
+  status: "password_changed";
+}
+
 export interface LoginResponse {
   token: string;
   expiresAt: string;
@@ -116,9 +153,26 @@ export interface CreateUserRequest {
   quota?: number;
 }
 
+export interface UpdateUserRequest {
+  password?: string;
+  displayName?: string;
+  quota?: number;
+}
+
 export interface CreateAliasRequest {
   sourceAddress: string;
   destinationAddress: string;
+}
+
+export interface UpdateAliasRequest {
+  sourceAddress: string;
+  destinationAddress: string;
+}
+
+export interface MailAttachment {
+  filename: string;
+  content: string;
+  mimeType: string;
 }
 
 export interface SendMailRequest {
@@ -128,6 +182,7 @@ export interface SendMailRequest {
   subject: string;
   bodyText?: string;
   bodyHtml?: string;
+  attachments?: MailAttachment[];
 }
 
 export interface SendMailResponse {
@@ -140,4 +195,36 @@ export interface ErrorResponse {
     code: string;
     message: string;
   };
+}
+
+export interface Contact {
+  id: number;
+  userEmail: string;
+  name: string;
+  email: string;
+  phone?: string;
+  createdAt: string;
+}
+
+export interface CreateContactRequest {
+  name: string;
+  email: string;
+  phone?: string;
+}
+
+export interface UpdateContactRequest {
+  name?: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface SieveResponse {
+  email: string;
+  script?: string;
+  active: boolean;
+  status?: string;
+}
+
+export interface SieveSetRequest {
+  script: string;
 }

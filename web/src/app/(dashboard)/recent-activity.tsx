@@ -54,7 +54,7 @@ export function RecentActivity() {
                 </div>
               ))}
             </div>
-          ) : !data?.data.length ? (
+          ) : !data?.entries?.length ? (
             <div className="flex h-[240px] items-center justify-center">
               <span className="text-xs text-muted-foreground">
                 No recent activity
@@ -62,7 +62,7 @@ export function RecentActivity() {
             </div>
           ) : (
             <div className="flex flex-col">
-              {data.data.map((entry) => (
+              {data.entries?.map((entry) => (
                 <div
                   key={entry.id}
                   className="flex items-center gap-3 border-t border-border px-4 py-2 font-mono text-xs"

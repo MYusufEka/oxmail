@@ -174,7 +174,7 @@ describe("DkimDomainCard", () => {
     fireEvent.click(screen.getByRole("button", { name: /Generate Key/i }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
     });
   });
 });

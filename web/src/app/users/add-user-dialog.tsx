@@ -191,6 +191,7 @@ export function AddUserDialog({ selectedDomainId, domains }: AddUserDialogProps)
                       <Input
                         type={showPassword ? "text" : "password"}
                         placeholder="Minimum 8 characters"
+                        data-testid="password-input"
                         {...field}
                       />
                       <Button

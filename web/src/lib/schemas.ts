@@ -126,6 +126,12 @@ export const mailMessageListResponseSchema = z.object({
   pagination: paginationSchema,
 });
 
+export const mailAttachmentSchema = z.object({
+  filename: z.string(),
+  content: z.string(),
+  mimeType: z.string(),
+});
+
 export const sendMailRequestSchema = z.object({
   from: z.string().email(),
   to: z.array(z.string().email()).min(1),
@@ -133,6 +139,7 @@ export const sendMailRequestSchema = z.object({
   subject: z.string().min(1),
   bodyText: z.string().optional(),
   bodyHtml: z.string().optional(),
+  attachments: z.array(mailAttachmentSchema).optional(),
 });
 
 export const sendMailResponseSchema = z.object({
@@ -166,4 +173,18 @@ export const loginRequestSchema = z.object({
 export const loginResponseSchema = z.object({
   token: z.string(),
   expiresAt: z.string().datetime(),
+});
+
+export const changePasswordRequestSchema = z.object({
+  email: z.string().email("Enter a valid email address"),
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Must contain at least one uppercase letter")
+    .regex(/[0-9]/, "Must contain at least one number"),
+});
+
+export const changePasswordResponseSchema = z.object({
+  status: z.literal("password_changed"),
 });

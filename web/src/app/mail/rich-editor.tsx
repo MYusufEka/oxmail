@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import {
   Bold,
   Italic,
@@ -41,6 +41,7 @@ export function RichEditor({
   className,
 }: RichEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
+  const isInternalChange = useRef(false);
 
   const execCommand = useCallback((command: string) => {
     if (command === "createLink") {
@@ -55,9 +56,19 @@ export function RichEditor({
   }, []);
 
   const handleInput = useCallback(() => {
+    isInternalChange.current = true;
     const html = editorRef.current?.innerHTML ?? "";
     onChange(html);
   }, [onChange]);
+
+  // Sync from parent only when value changes externally (e.g. dialog reset),
+  // not on every keystroke — that would clobber cursor position.
+  useEffect(() => {
+    if (!isInternalChange.current && editorRef.current) {
+      editorRef.current.innerHTML = value;
+    }
+    isInternalChange.current = false;
+  }, [value]);
 
   return (
     <div
@@ -89,7 +100,6 @@ export function RichEditor({
         className="min-h-[200px] flex-1 overflow-y-auto px-3 py-2 text-sm text-foreground outline-none [&:empty]:before:pointer-events-none [&:empty]:before:text-muted-foreground [&:empty]:before:content-[attr(data-placeholder)]"
         data-placeholder={placeholder}
         onInput={handleInput}
-        dangerouslySetInnerHTML={{ __html: value }}
       />
     </div>
   );

@@ -28,6 +28,7 @@ interface MessageListProps {
   messages: MailMessage[];
   selectedId: number | null;
   isLoading: boolean;
+  contactsMap?: Record<string, string>;
   onSelect: (id: number) => void;
 }
 
@@ -35,6 +36,7 @@ export function MessageList({
   messages,
   selectedId,
   isLoading,
+  contactsMap,
   onSelect,
 }: MessageListProps) {
   const threads = useMemo(() => groupByThread(messages), [messages]);
@@ -73,7 +75,7 @@ export function MessageList({
     <div
       role="grid"
       aria-label="Message list"
-      className="h-full overflow-y-auto"
+      className="min-h-0 h-full overflow-y-auto"
       data-testid="message-list"
     >
       {threads.map((thread) =>
@@ -83,6 +85,7 @@ export function MessageList({
             message={message}
             selected={message.id === selectedId}
             indented={idx > 0}
+            contactsMap={contactsMap}
             onSelect={onSelect}
           />
         )),

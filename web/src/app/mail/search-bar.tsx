@@ -157,8 +157,8 @@ export function SearchBar({ onSearch, onClear, isSearching }: SearchBarProps) {
       {/* Search input */}
       <div
         className={cn(
-          "flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm transition-colors",
-          "focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-ring/20",
+          "flex items-center gap-2 overflow-hidden rounded-md border border-border bg-card px-3 py-1.5 text-sm transition-colors",
+          "focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-inset focus-within:ring-ring/20",
         )}
       >
         <Search className="size-4 shrink-0 text-muted-foreground" />

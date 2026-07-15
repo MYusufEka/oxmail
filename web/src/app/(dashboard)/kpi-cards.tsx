@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDomains } from "@/hooks/use-domains";
 import { useLogs } from "@/hooks/use-logs";
+import { useUsers } from "@/hooks/use-users";
 
 interface KpiCardProps {
   icon: React.ReactNode;
@@ -50,9 +51,11 @@ function KpiCardSkeleton() {
 
 export function KpiCards() {
   const domains = useDomains({ limit: 1 });
+  const firstDomainId = domains.data?.data[0]?.id ?? 0;
+  const users = useUsers(firstDomainId, { limit: 1 });
   const logs = useLogs({ limit: 1 });
 
-  const isLoading = domains.isLoading || logs.isLoading;
+  const isLoading = domains.isLoading || users.isLoading || logs.isLoading;
 
   if (isLoading) {
     return (
@@ -66,7 +69,8 @@ export function KpiCards() {
   }
 
   const totalDomains = domains.data?.pagination.total ?? 0;
-  const totalEmails = logs.data?.pagination.total ?? 0;
+  const totalUsers = users.data?.pagination.total ?? 0;
+  const totalEmails = logs.data?.total ?? 0;
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -79,7 +83,7 @@ export function KpiCards() {
       <KpiCard
         icon={<Users className="size-5" />}
         label="Total Users"
-        value="—"
+        value={totalUsers}
         trend="Across all domains"
       />
       <KpiCard

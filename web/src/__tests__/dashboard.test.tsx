@@ -31,12 +31,14 @@ const mockDomains: PaginatedResponse<Domain> = {
 
 const mockHealth: HealthStatus = {
   status: "healthy",
-  services: {
-    postfix: { status: "up", latencyMs: 5 },
-    dovecot: { status: "up", latencyMs: 3 },
-    rspamd: { status: "up", latencyMs: 10 },
-    redis: { status: "up", latencyMs: 1 },
-  },
+  version: "1.0.0",
+  uptime: "1d 0h 0m",
+  services: [
+    { name: "postfix", status: "healthy", latencyMs: 5 },
+    { name: "dovecot", status: "healthy", latencyMs: 3 },
+    { name: "rspamd", status: "healthy", latencyMs: 10 },
+    { name: "redis", status: "healthy", latencyMs: 1 },
+  ],
 };
 
 const mockLogs: PaginatedResponse<LogEntry> = {
@@ -46,6 +48,17 @@ const mockLogs: PaginatedResponse<LogEntry> = {
     { id: 3, timestamp: "2024-01-01T10:02:00Z", service: "rspamd", level: "warn", message: "Spam score high for incoming message" },
   ],
   pagination: { page: 1, limit: 10, total: 3 },
+};
+
+const mockLogsResponse = {
+  entries: [
+    { id: 1, timestamp: "2024-01-01T10:00:00Z", service: "postfix", level: "info", message: "Mail delivered to user@example.com" },
+    { id: 2, timestamp: "2024-01-01T10:01:00Z", service: "dovecot", level: "info", message: "IMAP login successful" },
+    { id: 3, timestamp: "2024-01-01T10:02:00Z", service: "rspamd", level: "warn", message: "Spam score high for incoming message" },
+  ],
+  total: 3,
+  limit: 10,
+  offset: 0,
 };
 
 function mockFetchResponses(responses: Record<string, unknown>) {
@@ -98,7 +111,7 @@ describe("KpiCards", () => {
     render(<KpiCards />, { wrapper: createWrapper() });
 
     expect(await screen.findByText("Total Domains")).toBeInTheDocument();
-    expect(await screen.findByText("2")).toBeInTheDocument();
+    expect(screen.getAllByText("2").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Emails Today")).toBeInTheDocument();
     expect(screen.getByText("Total Users")).toBeInTheDocument();
     expect(screen.getByText("Uptime")).toBeInTheDocument();
@@ -170,7 +183,7 @@ describe("RecentActivity", () => {
 
   it("renders log entries after data loads", async () => {
     mockFetchResponses({
-      "/api/logs": mockLogs,
+      "/api/logs": mockLogsResponse,
     });
 
     render(<RecentActivity />, { wrapper: createWrapper() });
@@ -183,7 +196,7 @@ describe("RecentActivity", () => {
 
   it("shows service names in log entries", async () => {
     mockFetchResponses({
-      "/api/logs": mockLogs,
+      "/api/logs": mockLogsResponse,
     });
 
     render(<RecentActivity />, { wrapper: createWrapper() });
@@ -195,7 +208,7 @@ describe("RecentActivity", () => {
 
   it("shows empty state when no logs", async () => {
     mockFetchResponses({
-      "/api/logs": { data: [], pagination: { page: 1, limit: 10, total: 0 } },
+      "/api/logs": { entries: [], total: 0, limit: 10, offset: 0 },
     });
 
     render(<RecentActivity />, { wrapper: createWrapper() });

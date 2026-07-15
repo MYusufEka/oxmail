@@ -60,8 +60,12 @@ function mockFetchResponses(responses: unknown[]) {
 describe("UserTable", () => {
   it("renders user rows with correct data", () => {
     const onDelete = vi.fn();
+    const onEdit = vi.fn();
+    const onMailSetup = vi.fn();
+    const onResetPassword = vi.fn();
+    const onBulkDelete = vi.fn().mockResolvedValue(undefined);
     render(
-      <UserTable users={mockUsers.data} isLoading={false} onDelete={onDelete} />
+      <UserTable users={mockUsers.data} isLoading={false} onDelete={onDelete} onEdit={onEdit} onMailSetup={onMailSetup} onResetPassword={onResetPassword} onBulkDelete={onBulkDelete} />
     );
 
     expect(screen.getByText("admin@example.com")).toBeInTheDocument();
@@ -74,8 +78,12 @@ describe("UserTable", () => {
 
   it("renders loading skeleton when isLoading is true", () => {
     const onDelete = vi.fn();
+    const onEdit = vi.fn();
+    const onMailSetup = vi.fn();
+    const onResetPassword = vi.fn();
+    const onBulkDelete = vi.fn().mockResolvedValue(undefined);
     const { container } = render(
-      <UserTable users={[]} isLoading={true} onDelete={onDelete} />
+      <UserTable users={[]} isLoading={true} onDelete={onDelete} onEdit={onEdit} onMailSetup={onMailSetup} onResetPassword={onResetPassword} onBulkDelete={onBulkDelete} />
     );
 
     const skeletons = container.querySelectorAll("[data-slot='skeleton']");
@@ -84,8 +92,12 @@ describe("UserTable", () => {
 
   it("renders empty state when no users", () => {
     const onDelete = vi.fn();
+    const onEdit = vi.fn();
+    const onMailSetup = vi.fn();
+    const onResetPassword = vi.fn();
+    const onBulkDelete = vi.fn().mockResolvedValue(undefined);
     render(
-      <UserTable users={[]} isLoading={false} onDelete={onDelete} />
+      <UserTable users={[]} isLoading={false} onDelete={onDelete} onEdit={onEdit} onMailSetup={onMailSetup} onResetPassword={onResetPassword} onBulkDelete={onBulkDelete} />
     );
 
     expect(screen.getByText(/No users found/)).toBeInTheDocument();
@@ -93,8 +105,12 @@ describe("UserTable", () => {
 
   it("calls onDelete when delete button is clicked", () => {
     const onDelete = vi.fn();
+    const onEdit = vi.fn();
+    const onMailSetup = vi.fn();
+    const onResetPassword = vi.fn();
+    const onBulkDelete = vi.fn().mockResolvedValue(undefined);
     render(
-      <UserTable users={mockUsers.data} isLoading={false} onDelete={onDelete} />
+      <UserTable users={mockUsers.data} isLoading={false} onDelete={onDelete} onEdit={onEdit} onMailSetup={onMailSetup} onResetPassword={onResetPassword} onBulkDelete={onBulkDelete} />
     );
 
     const deleteButtons = screen.getAllByRole("button", { name: /delete user/i });

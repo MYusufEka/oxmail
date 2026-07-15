@@ -57,12 +57,14 @@ const mockDkim: DKIMKey = {
 
 const mockHealth: HealthStatus = {
   status: "healthy",
-  services: {
-    postfix: { status: "up", latencyMs: 5 },
-    dovecot: { status: "up", latencyMs: 3 },
-    rspamd: { status: "up", latencyMs: 10 },
-    redis: { status: "up", latencyMs: 1 },
-  },
+  version: "1.0.0",
+  uptime: "1d 0h 0m",
+  services: [
+    { name: "postfix", status: "healthy", latencyMs: 5 },
+    { name: "dovecot", status: "healthy", latencyMs: 3 },
+    { name: "rspamd", status: "healthy", latencyMs: 10 },
+    { name: "redis", status: "healthy", latencyMs: 1 },
+  ],
 };
 
 const mockLogs: PaginatedResponse<LogEntry> = {
