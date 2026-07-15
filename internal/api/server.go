@@ -165,11 +165,23 @@ func (s *Server) registerRoutes(conn *sql.DB, jwtSecret, adminPassword string) {
 			contactSvc := domain.NewContactService(conn)
 			contactsHandler := NewContactsHandler(contactSvc)
 			contactsHandler.RegisterRoutes(r)
+
+			bounceSvc := domain.NewBounceService(conn)
+			bouncesHandler := NewBouncesHandler(bounceSvc)
+			bouncesHandler.RegisterRoutes(r)
+
+			statsSvc := domain.NewStatsService(conn)
+			statsHandler := NewStatsHandler(statsSvc)
+			statsHandler.RegisterRoutes(r)
+
+			auditSvc := domain.NewAuditService(conn)
+			auditHandler := NewAuditHandler(auditSvc)
+			auditHandler.RegisterRoutes(r)
 		}
 
 		// Mail handler (IMAP bridge) — works without DB
 		imapBridge := mail.NewDovecotBridge("dovecot:143")
-		mailHandler := NewMailHandler(imapBridge)
+		mailHandler := NewMailHandler(imapBridge, &mail.DockerExecExecutor{ContainerName: "oxmail-postfix"})
 		mailHandler.RegisterRoutes(r)
 
 		// Sieve handler — manage Dovecot sieve scripts
@@ -213,6 +225,9 @@ func (s *Server) registerRoutes(conn *sql.DB, jwtSecret, adminPassword string) {
 		}
 		sendHandler.RegisterRoutes(r)
 	})
+
+	autodiscoverHandler := NewAutodiscoverHandler()
+	autodiscoverHandler.RegisterRoutes(s.router)
 
 	// Dev-only routes: test endpoints available only in dev mode
 	if IsDevMode() {
