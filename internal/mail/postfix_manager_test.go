@@ -23,6 +23,12 @@ func (m *mockCommandExecutor) Run(name string, args ...string) error {
 	return m.err
 }
 
+func (m *mockCommandExecutor) RunWithOutput(name string, args ...string) (string, error) {
+	cmd := append([]string{name}, args...)
+	m.commands = append(m.commands, cmd)
+	return "", m.err
+}
+
 // failingCommandExecutor fails on the Nth call.
 type failingCommandExecutor struct {
 	commands  [][]string
@@ -38,6 +44,16 @@ func (f *failingCommandExecutor) Run(name string, args ...string) error {
 		return fmt.Errorf("command failed: %s", name)
 	}
 	return nil
+}
+
+func (f *failingCommandExecutor) RunWithOutput(name string, args ...string) (string, error) {
+	cmd := append([]string{name}, args...)
+	f.commands = append(f.commands, cmd)
+	f.callCount++
+	if f.callCount <= f.failUntil {
+		return "", fmt.Errorf("command failed: %s", name)
+	}
+	return "", nil
 }
 
 func TestPostfixManager_ApplyDomainConfig(t *testing.T) {
@@ -224,7 +240,7 @@ func TestPostfixManager_ApplyDomainConfig_PostmapFails(t *testing.T) {
 
 	err := manager.ApplyDomainConfig(domains)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "postmap")
+	assert.Contains(t, err.Error(), "exec error")
 
 	// File should still be written even if postmap fails.
 	content, err := os.ReadFile(domainsPath)

@@ -52,6 +52,7 @@ func (g *DovecotUsersGenerator) GeneratePassdb(users []domain.User) error {
 
 // GenerateUserdb writes the Dovecot userdb file.
 // Format: user@domain::5000:5000::/var/mail/vhosts/domain/user
+// When Quota > 0, appends quota_rule extra field for per-user mailbox quota.
 func (g *DovecotUsersGenerator) GenerateUserdb(users []domain.User) error {
 	if err := os.MkdirAll(g.outputDir, 0750); err != nil {
 		return fmt.Errorf("create output dir: %w", err)
@@ -61,7 +62,11 @@ func (g *DovecotUsersGenerator) GenerateUserdb(users []domain.User) error {
 	for _, user := range users {
 		localPart, domainPart := splitEmail(user.Email)
 		home := fmt.Sprintf("/var/mail/vhosts/%s/%s", domainPart, localPart)
-		fmt.Fprintf(&builder, "%s::5000:5000::%s\n", user.Email, home)
+		if user.Quota > 0 {
+			fmt.Fprintf(&builder, "%s::5000:5000::%s:quota_rule=*\\:storage=%dB\n", user.Email, home, user.Quota)
+		} else {
+			fmt.Fprintf(&builder, "%s::5000:5000::%s\n", user.Email, home)
+		}
 	}
 
 	path := filepath.Join(g.outputDir, "userdb")

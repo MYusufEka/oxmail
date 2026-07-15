@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"database/sql"
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
@@ -14,21 +15,55 @@ import (
 )
 
 // DKIMService manages DKIM key generation, storage, and retrieval.
+// Keys are persisted to both SQLite (dkim_keys table) and PEM files on disk.
 type DKIMService struct {
+	db          *sql.DB
 	keyBasePath string
 	mu          sync.RWMutex
 	keys        map[string]*DKIMKey // keyed by "domain/selector"
 }
 
-// NewDKIMService creates a new DKIMService with the given base path for key storage.
-func NewDKIMService(keyBasePath string) *DKIMService {
-	return &DKIMService{
+// NewDKIMService creates a new DKIMService backed by SQLite and filesystem.
+// Pass nil for db in tests (keys stored in-memory only).
+func NewDKIMService(db *sql.DB, keyBasePath string) *DKIMService {
+	s := &DKIMService{
+		db:          db,
 		keyBasePath: keyBasePath,
 		keys:        make(map[string]*DKIMKey),
 	}
+	if db != nil {
+		s.loadFromDB()
+	}
+	return s
 }
 
-// Generate creates a new RSA 2048-bit DKIM key pair for the given domain and selector.
+// loadFromDB loads all existing DKIM keys from SQLite into memory.
+func (s *DKIMService) loadFromDB() {
+	if s.db == nil {
+		return
+	}
+	rows, err := s.db.Query("SELECT domain, selector, public_key_pem, created_at FROM dkim_keys")
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for rows.Next() {
+		var key DKIMKey
+		var createdAt time.Time
+		if err := rows.Scan(&key.Domain, &key.Selector, &key.PublicKey, &createdAt); err != nil {
+			continue
+		}
+		key.CreatedAt = createdAt
+		key.DNSRecord = buildDNSRecord(key.PublicKey)
+		s.keys[keyID(key.Domain, key.Selector)] = &key
+	}
+}
+
+// Generate creates a new RSA 2048-bit DKIM key pair, persisted to SQLite + disk.
 func (s *DKIMService) Generate(domain, selector string) (*DKIMKey, error) {
 	if domain == "" {
 		return nil, fmt.Errorf("domain must not be empty")
@@ -52,13 +87,25 @@ func (s *DKIMService) Generate(domain, selector string) (*DKIMKey, error) {
 	}
 
 	dnsRecord := buildDNSRecord(publicKeyPEM)
+	now := time.Now().UTC()
 
 	dkimKey := &DKIMKey{
 		Domain:    domain,
 		Selector:  selector,
 		PublicKey: publicKeyPEM,
 		DNSRecord: dnsRecord,
-		CreatedAt: time.Now().UTC(),
+		CreatedAt: now,
+	}
+
+	// Persist to SQLite
+	if s.db != nil {
+		_, err = s.db.Exec(
+			"INSERT OR REPLACE INTO dkim_keys (domain, selector, public_key_pem, created_at) VALUES (?, ?, ?, ?)",
+			domain, selector, publicKeyPEM, now,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("persist DKIM key: %w", err)
+		}
 	}
 
 	s.mu.Lock()
@@ -74,47 +121,77 @@ func (s *DKIMService) Get(domain, selector string) (*DKIMKey, error) {
 	key, exists := s.keys[keyID(domain, selector)]
 	s.mu.RUnlock()
 
-	if !exists {
+	if exists {
+		return key, nil
+	}
+
+	if s.db == nil {
 		return nil, fmt.Errorf("DKIM key not found for %s/%s", domain, selector)
 	}
 
-	return key, nil
+	var dbKey DKIMKey
+	var createdAt time.Time
+	err := s.db.QueryRow(
+		"SELECT domain, selector, public_key_pem, created_at FROM dkim_keys WHERE domain = ? AND selector = ?",
+		domain, selector,
+	).Scan(&dbKey.Domain, &dbKey.Selector, &dbKey.PublicKey, &createdAt)
+	if err != nil {
+		return nil, fmt.Errorf("DKIM key not found for %s/%s", domain, selector)
+	}
+
+	dbKey.CreatedAt = createdAt
+	dbKey.DNSRecord = buildDNSRecord(dbKey.PublicKey)
+
+	s.mu.Lock()
+	s.keys[keyID(domain, selector)] = &dbKey
+	s.mu.Unlock()
+
+	return &dbKey, nil
 }
 
 // Delete removes the DKIM key for the given domain and selector.
 func (s *DKIMService) Delete(domain, selector string) error {
-	s.mu.RLock()
+	s.mu.Lock()
 	_, exists := s.keys[keyID(domain, selector)]
-	s.mu.RUnlock()
+	delete(s.keys, keyID(domain, selector))
+	s.mu.Unlock()
 
-	if !exists {
-		return fmt.Errorf("DKIM key not found for %s/%s", domain, selector)
+	if s.db == nil {
+		if !exists {
+			return fmt.Errorf("DKIM key not found for %s/%s", domain, selector)
+		}
+		keyPath := filepath.Join(s.keyBasePath, domain, selector+".private")
+		if err := os.Remove(keyPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove private key file: %w", err)
+		}
+		return nil
 	}
 
+	_, err := s.db.Exec("DELETE FROM dkim_keys WHERE domain = ? AND selector = ?", domain, selector)
+	if err != nil {
+		return fmt.Errorf("delete DKIM key from DB: %w", err)
+	}
+
+	// Remove private key file
 	keyPath := filepath.Join(s.keyBasePath, domain, selector+".private")
 	if err := os.Remove(keyPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remove private key file: %w", err)
 	}
 
-	s.mu.Lock()
-	delete(s.keys, keyID(domain, selector))
-	s.mu.Unlock()
-
 	return nil
 }
 
-// Rotate deletes the existing key and generates a new one.
 func (s *DKIMService) Rotate(domain, selector string) (*DKIMKey, error) {
 	s.mu.RLock()
 	_, exists := s.keys[keyID(domain, selector)]
 	s.mu.RUnlock()
 
 	if !exists {
-		return nil, fmt.Errorf("DKIM key not found for %s/%s: cannot rotate non-existent key", domain, selector)
+		return nil, fmt.Errorf("DKIM key not found for %s/%s", domain, selector)
 	}
 
 	if err := s.Delete(domain, selector); err != nil {
-		return nil, fmt.Errorf("delete old key during rotation: %w", err)
+		return nil, fmt.Errorf("rotate delete: %w", err)
 	}
 
 	return s.Generate(domain, selector)
@@ -147,7 +224,6 @@ func marshalPublicKey(pub *rsa.PublicKey) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("marshal PKIX public key: %w", err)
 	}
-
 	return base64.StdEncoding.EncodeToString(derBytes), nil
 }
 

@@ -39,10 +39,14 @@ func (c *goIMAPClient) Login(user, password string) error {
 }
 
 func (c *goIMAPClient) FetchMessages(page, limit int) ([]domain.MailMessage, int, error) {
-	selectCmd := c.client.Select("INBOX", nil)
+	return c.FetchFolderMessages("INBOX", page, limit)
+}
+
+func (c *goIMAPClient) FetchFolderMessages(folder string, page, limit int) ([]domain.MailMessage, int, error) {
+	selectCmd := c.client.Select(folder, nil)
 	mbox, err := selectCmd.Wait()
 	if err != nil {
-		return nil, 0, fmt.Errorf("select INBOX: %w", err)
+		return nil, 0, fmt.Errorf("select %s: %w", folder, err)
 	}
 
 	total := int(mbox.NumMessages)
@@ -122,9 +126,27 @@ func (c *goIMAPClient) FetchMessage(uid uint32) (*domain.MailMessage, error) {
 
 	mailMsg := envelopeToMailMessage(msg)
 
-	// Parse MIME body
+	// BodySection items are already consumed by envelopeToMailMessage.
+	// Re-fetch the message to get body content.
+	// Use sequence number (not UID) for the re-fetch since we already have the message.
+	bodyFetchOpts := &imap.FetchOptions{
+		BodySection: []*imap.FetchItemBodySection{{}},
+	}
+	seqSet2 := imap.UIDSet{}
+	seqSet2.AddNum(imap.UID(uid))
+	if err := fetchCmd.Close(); err != nil {
+		return nil, fmt.Errorf("close first fetch: %w", err)
+	}
+	fetchCmd2 := c.client.Fetch(seqSet2, bodyFetchOpts)
+	defer fetchCmd2.Close()
+
+	bodyMsg := fetchCmd2.Next()
+	if bodyMsg == nil {
+		return &mailMsg, nil
+	}
+
 	for {
-		item := msg.Next()
+		item := bodyMsg.Next()
 		if item == nil {
 			break
 		}
@@ -134,6 +156,7 @@ func (c *goIMAPClient) FetchMessage(uid uint32) (*domain.MailMessage, error) {
 		}
 		parseMIMEBody(&mailMsg, section.Literal)
 	}
+	fetchCmd2.Close()
 
 	if err := fetchCmd.Close(); err != nil {
 		return nil, fmt.Errorf("fetch message: %w", err)
@@ -201,7 +224,7 @@ func (c *goIMAPClient) SearchMessages(query string) ([]domain.MailMessage, error
 	}
 
 	criteria := &imap.SearchCriteria{
-		Body: []string{query},
+		Text: []string{query},
 	}
 
 	searchCmd := c.client.Search(criteria, nil)
@@ -227,7 +250,6 @@ func (c *goIMAPClient) SearchMessages(query string) ([]domain.MailMessage, error
 	}
 
 	fetchCmd := c.client.Fetch(seqSet, fetchOptions)
-	defer fetchCmd.Close()
 
 	var messages []domain.MailMessage
 	for {
@@ -242,7 +264,140 @@ func (c *goIMAPClient) SearchMessages(query string) ([]domain.MailMessage, error
 		return nil, fmt.Errorf("fetch search results: %w", err)
 	}
 
+	if len(messages) == 0 {
+		return messages, nil
+	}
+
+	for i := range messages {
+		uid := uint32(messages[i].ID)
+		if uid == 0 {
+			continue
+		}
+
+		uidSet := imap.UIDSet{}
+		uidSet.AddNum(imap.UID(uid))
+
+		bodyFetchOpts := &imap.FetchOptions{
+			BodySection: []*imap.FetchItemBodySection{{}},
+		}
+		bodyFetchCmd := c.client.Fetch(uidSet, bodyFetchOpts)
+
+		bodyMsg := bodyFetchCmd.Next()
+		if bodyMsg == nil {
+			bodyFetchCmd.Close()
+			continue
+		}
+
+		for {
+			item := bodyMsg.Next()
+			if item == nil {
+				break
+			}
+			section, ok := item.(imapclient.FetchItemDataBodySection)
+			if !ok {
+				continue
+			}
+			parseMIMEBody(&messages[i], section.Literal)
+			// Truncate body snippet to 500 chars for search results
+			if len(messages[i].BodyText) > 500 {
+				messages[i].BodyText = messages[i].BodyText[:500]
+			}
+		}
+		bodyFetchCmd.Close()
+	}
+
 	return messages, nil
+}
+
+func (c *goIMAPClient) ListFolders() ([]domain.MailFolder, error) {
+	listCmd := c.client.List("", "*", nil)
+	mailboxes, err := listCmd.Collect()
+	if err != nil {
+		return nil, fmt.Errorf("list folders: %w", err)
+	}
+
+	var folders []domain.MailFolder
+	for _, mbox := range mailboxes {
+		statusOpts := &imap.StatusOptions{
+			NumUnseen: true,
+		}
+		statusData, err := c.client.Status(mbox.Mailbox, statusOpts).Wait()
+		if err != nil {
+			folders = append(folders, domain.MailFolder{
+				Name:      mbox.Mailbox,
+				Delimiter: string(mbox.Delim),
+				Unread:    0,
+			})
+			continue
+		}
+
+		unread := 0
+		if statusData.NumUnseen != nil {
+			unread = int(*statusData.NumUnseen)
+		}
+
+		folders = append(folders, domain.MailFolder{
+			Name:      mbox.Mailbox,
+			Delimiter: string(mbox.Delim),
+			Unread:    unread,
+		})
+	}
+
+	return folders, nil
+}
+
+func (c *goIMAPClient) CreateFolder(name string) error {
+	cmd := c.client.Create(name, nil)
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("create folder %s: %w", name, err)
+	}
+	return nil
+}
+
+func (c *goIMAPClient) DeleteFolder(name string) error {
+	cmd := c.client.Delete(name)
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("delete folder %s: %w", name, err)
+	}
+	return nil
+}
+
+func (c *goIMAPClient) RenameFolder(oldName, newName string) error {
+	cmd := c.client.Rename(oldName, newName, nil)
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("rename folder %s to %s: %w", oldName, newName, err)
+	}
+	return nil
+}
+
+func (c *goIMAPClient) MoveMessage(uid uint32, fromFolder, toFolder string) error {
+	selectCmd := c.client.Select(fromFolder, nil)
+	if _, err := selectCmd.Wait(); err != nil {
+		return fmt.Errorf("select %s: %w", fromFolder, err)
+	}
+
+	uidSet := imap.UIDSet{}
+	uidSet.AddNum(imap.UID(uid))
+
+	copyCmd := c.client.Copy(uidSet, toFolder)
+	if _, err := copyCmd.Wait(); err != nil {
+		return fmt.Errorf("copy to %s: %w", toFolder, err)
+	}
+
+	storeCmd := c.client.Store(uidSet, &imap.StoreFlags{
+		Op:    imap.StoreFlagsAdd,
+		Flags: []imap.Flag{imap.FlagDeleted},
+	}, nil)
+	if _, err := storeCmd.Collect(); err != nil {
+		return fmt.Errorf("flag deleted: %w", err)
+	}
+
+	expungeCmd := c.client.Expunge()
+	if _, err := expungeCmd.Collect(); err != nil {
+		return fmt.Errorf("expunge: %w", err)
+	}
+
+	return nil
 }
 
 func (c *goIMAPClient) Logout() error {

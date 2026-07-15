@@ -43,7 +43,7 @@ func setupDNSRouter(handler *DNSHandler) *chi.Mux {
 }
 
 func TestDNSRecords_ReturnsAllRequiredRecords(t *testing.T) {
-	dkimSvc := domain.NewDKIMService(t.TempDir())
+	dkimSvc := domain.NewDKIMService(nil, t.TempDir())
 	_, err := dkimSvc.Generate("example.com", "default")
 	require.NoError(t, err)
 
@@ -75,7 +75,7 @@ func TestDNSRecords_ReturnsAllRequiredRecords(t *testing.T) {
 }
 
 func TestDNSRecords_MXRecord(t *testing.T) {
-	dkimSvc := domain.NewDKIMService(t.TempDir())
+	dkimSvc := domain.NewDKIMService(nil, t.TempDir())
 	_, err := dkimSvc.Generate("example.com", "default")
 	require.NoError(t, err)
 
@@ -106,7 +106,7 @@ func TestDNSRecords_MXRecord(t *testing.T) {
 }
 
 func TestDNSRecords_SPFRecord(t *testing.T) {
-	dkimSvc := domain.NewDKIMService(t.TempDir())
+	dkimSvc := domain.NewDKIMService(nil, t.TempDir())
 	_, err := dkimSvc.Generate("example.com", "default")
 	require.NoError(t, err)
 
@@ -134,7 +134,7 @@ func TestDNSRecords_SPFRecord(t *testing.T) {
 }
 
 func TestDNSRecords_DMARCRecord(t *testing.T) {
-	dkimSvc := domain.NewDKIMService(t.TempDir())
+	dkimSvc := domain.NewDKIMService(nil, t.TempDir())
 	_, err := dkimSvc.Generate("example.com", "default")
 	require.NoError(t, err)
 
@@ -163,7 +163,7 @@ func TestDNSRecords_DMARCRecord(t *testing.T) {
 }
 
 func TestDNSRecords_DKIMRecord(t *testing.T) {
-	dkimSvc := domain.NewDKIMService(t.TempDir())
+	dkimSvc := domain.NewDKIMService(nil, t.TempDir())
 	key, err := dkimSvc.Generate("example.com", "default")
 	require.NoError(t, err)
 
@@ -192,7 +192,7 @@ func TestDNSRecords_DKIMRecord(t *testing.T) {
 }
 
 func TestDNSRecords_NoDKIMKey(t *testing.T) {
-	dkimSvc := domain.NewDKIMService(t.TempDir())
+	dkimSvc := domain.NewDKIMService(nil, t.TempDir())
 	// No DKIM key generated
 
 	handler := newTestDNSHandler(dkimSvc, &mockDNSResolver{})
@@ -214,7 +214,7 @@ func TestDNSRecords_NoDKIMKey(t *testing.T) {
 }
 
 func TestDNSCheck_AllValid(t *testing.T) {
-	dkimSvc := domain.NewDKIMService(t.TempDir())
+	dkimSvc := domain.NewDKIMService(nil, t.TempDir())
 	key, err := dkimSvc.Generate("example.com", "default")
 	require.NoError(t, err)
 
@@ -249,7 +249,7 @@ func TestDNSCheck_AllValid(t *testing.T) {
 }
 
 func TestDNSCheck_MXInvalid(t *testing.T) {
-	dkimSvc := domain.NewDKIMService(t.TempDir())
+	dkimSvc := domain.NewDKIMService(nil, t.TempDir())
 
 	resolver := &mockDNSResolver{
 		mxRecords:  []string{"wrong.example.com."},

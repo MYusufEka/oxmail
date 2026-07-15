@@ -19,6 +19,7 @@ type User struct {
 	DomainID     int64     `json:"domainId"`
 	DisplayName  string    `json:"displayName,omitempty"`
 	Quota        int64     `json:"quota"`
+	StorageUsed  int64     `json:"storageUsed,omitempty"`
 	Active       bool      `json:"active"`
 	CreatedAt    time.Time `json:"createdAt"`
 	UpdatedAt    time.Time `json:"updatedAt"`
@@ -136,26 +137,80 @@ type CreateUserRequest struct {
 	Quota       int64  `json:"quota,omitempty"`
 }
 
+// UpdateUserRequest is the payload for partially updating a user.
+type UpdateUserRequest struct {
+	Password    *string `json:"password,omitempty"`
+	DisplayName *string `json:"displayName,omitempty"`
+	Quota       *int64  `json:"quota,omitempty"`
+}
+
 // CreateAliasRequest is the payload for creating an alias.
 type CreateAliasRequest struct {
 	SourceAddress      string `json:"sourceAddress"`
 	DestinationAddress string `json:"destinationAddress"`
 }
 
+// SendMailAttachment represents an attachment included in a send request.
+type SendMailAttachment struct {
+	Filename string `json:"filename"`
+	Content  string `json:"content"` // base64-encoded content
+	MimeType string `json:"mimeType"`
+}
+
 // SendMailRequest is the payload for sending an email.
 type SendMailRequest struct {
-	From     string   `json:"from"`
-	To       []string `json:"to"`
-	CC       []string `json:"cc,omitempty"`
-	Subject  string   `json:"subject"`
-	BodyText string   `json:"bodyText,omitempty"`
-	BodyHTML string   `json:"bodyHtml,omitempty"`
+	From        string               `json:"from"`
+	To          []string             `json:"to"`
+	CC          []string             `json:"cc,omitempty"`
+	Subject     string               `json:"subject"`
+	BodyText    string               `json:"bodyText,omitempty"`
+	BodyHTML    string               `json:"bodyHtml,omitempty"`
+	Attachments []SendMailAttachment `json:"attachments,omitempty"`
 }
 
 // SendMailResponse is returned after queuing an email for delivery.
 type SendMailResponse struct {
 	MessageID string `json:"messageId"`
 	Status    string `json:"status"`
+}
+
+// ChangePasswordRequest is the payload for self-service password change.
+type ChangePasswordRequest struct {
+	Email           string `json:"email"`
+	CurrentPassword string `json:"currentPassword"`
+	NewPassword     string `json:"newPassword"`
+}
+
+// MailFolder represents an IMAP mailbox with unread count.
+type MailFolder struct {
+	Name       string `json:"name"`
+	Delimiter  string `json:"delimiter"`
+	Unread     int    `json:"unread"`
+	Total      int    `json:"total"`
+}
+
+// Contact represents a saved address book entry.
+type Contact struct {
+	ID        int64     `json:"id"`
+	UserEmail string    `json:"userEmail"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Phone     string    `json:"phone,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// CreateContactRequest is the payload for creating a contact.
+type CreateContactRequest struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+	Phone string `json:"phone,omitempty"`
+}
+
+// UpdateContactRequest is the payload for updating a contact.
+type UpdateContactRequest struct {
+	Name  *string `json:"name,omitempty"`
+	Email *string `json:"email,omitempty"`
+	Phone *string `json:"phone,omitempty"`
 }
 
 // ErrorResponse is the standard error envelope.

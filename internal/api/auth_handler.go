@@ -1,23 +1,40 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/MYusufEka/oxmail/internal/domain"
 )
 
-// AuthHandler handles authentication endpoints.
+// UserLookup fetches a user by email for password verification.
+type UserLookup interface {
+	GetByEmail(ctx context.Context, email string) (*domain.User, error)
+	Update(ctx context.Context, id int64, req domain.UpdateUserRequest) (*domain.User, error)
+	List(ctx context.Context, params domain.UserListParams) ([]domain.User, int, error)
+}
+
+// PasswordChangeMailConfigApplier regenerates Dovecot passdb after password change.
+type PasswordChangeMailConfigApplier interface {
+	ApplyUserConfig(users []domain.User) error
+}
+
 type AuthHandler struct {
 	jwtSecret     string
 	adminPassword string
 	rateLimiter   *loginRateLimiter
+	userLookup    UserLookup
+	mailConfig    PasswordChangeMailConfigApplier
 }
 
 type loginRateLimiter struct {
@@ -61,18 +78,21 @@ func (rl *loginRateLimiter) recordAttempt(ip string) {
 	rl.attempts[ip] = append(rl.attempts[ip], time.Now())
 }
 
-// NewAuthHandler creates a new AuthHandler.
-func NewAuthHandler(jwtSecret, adminPassword string) *AuthHandler {
+func NewAuthHandler(jwtSecret, adminPassword string, userLookup UserLookup, mailConfig PasswordChangeMailConfigApplier) *AuthHandler {
 	return &AuthHandler{
 		jwtSecret:     jwtSecret,
 		adminPassword: adminPassword,
 		rateLimiter:   newLoginRateLimiter(5, time.Minute),
+		userLookup:    userLookup,
+		mailConfig:    mailConfig,
 	}
 }
 
-// RegisterRoutes registers auth routes on the router.
 func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 	r.Post("/api/auth/login", h.handleLogin)
+	if h.userLookup != nil {
+		r.Post("/api/auth/change-password", h.handleChangePassword)
+	}
 }
 
 func (h *AuthHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -143,6 +163,82 @@ func (h *AuthHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Token:     signed,
 		ExpiresAt: expiresAt,
 	})
+}
+
+func (h *AuthHandler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	var req domain.ChangePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, domain.ErrorResponse{
+			Error: domain.ErrorDetail{Code: "INVALID_BODY", Message: "Invalid request body"},
+		})
+		return
+	}
+
+	req.Email = strings.TrimSpace(req.Email)
+	if req.Email == "" || req.CurrentPassword == "" || req.NewPassword == "" {
+		writeJSON(w, http.StatusBadRequest, domain.ErrorResponse{
+			Error: domain.ErrorDetail{Code: "INVALID_BODY", Message: "Email, currentPassword, and newPassword are required"},
+		})
+		return
+	}
+
+	if len(req.NewPassword) < 8 {
+		writeJSON(w, http.StatusBadRequest, domain.ErrorResponse{
+			Error: domain.ErrorDetail{Code: "WEAK_PASSWORD", Message: "New password must be at least 8 characters"},
+		})
+		return
+	}
+
+	user, err := h.userLookup.GetByEmail(r.Context(), req.Email)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			writeJSON(w, http.StatusNotFound, domain.ErrorResponse{
+				Error: domain.ErrorDetail{Code: "USER_NOT_FOUND", Message: "User not found"},
+			})
+			return
+		}
+		slog.Error("failed to lookup user for password change", "error", err)
+		writeJSON(w, http.StatusInternalServerError, domain.ErrorResponse{
+			Error: domain.ErrorDetail{Code: "INTERNAL_ERROR", Message: "Internal server error"},
+		})
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.CurrentPassword)); err != nil {
+		writeJSON(w, http.StatusUnauthorized, domain.ErrorResponse{
+			Error: domain.ErrorDetail{Code: "INVALID_CREDENTIALS", Message: "Current password is incorrect"},
+		})
+		return
+	}
+
+	newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), 12)
+	if err != nil {
+		slog.Error("failed to hash new password", "error", err)
+		writeJSON(w, http.StatusInternalServerError, domain.ErrorResponse{
+			Error: domain.ErrorDetail{Code: "INTERNAL_ERROR", Message: "Internal server error"},
+		})
+		return
+	}
+
+	hashStr := string(newHash)
+	if _, err := h.userLookup.Update(r.Context(), user.ID, domain.UpdateUserRequest{Password: &hashStr}); err != nil {
+		slog.Error("failed to update password", "error", err, "email", req.Email)
+		writeJSON(w, http.StatusInternalServerError, domain.ErrorResponse{
+			Error: domain.ErrorDetail{Code: "INTERNAL_ERROR", Message: "Failed to update password"},
+		})
+		return
+	}
+
+	if h.mailConfig != nil {
+		users, _, err := h.userLookup.List(r.Context(), domain.UserListParams{Page: 1, Limit: 10000})
+		if err != nil {
+			slog.Error("failed to list users for dovecot config after password change", "error", err)
+		} else if err := h.mailConfig.ApplyUserConfig(users); err != nil {
+			slog.Error("failed to apply dovecot config after password change", "error", err)
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "password_changed"})
 }
 
 func extractIP(r *http.Request) string {

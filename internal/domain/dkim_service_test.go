@@ -12,7 +12,7 @@ import (
 
 func TestDKIMService_Generate(t *testing.T) {
 	tempDir := t.TempDir()
-	service := domain.NewDKIMService(tempDir)
+	service := domain.NewDKIMService(nil, tempDir)
 
 	t.Run("generates valid RSA 2048-bit key pair", func(t *testing.T) {
 		result, err := service.Generate("example.com", "default")
@@ -77,7 +77,7 @@ func TestDKIMService_Generate(t *testing.T) {
 
 func TestDKIMService_Get(t *testing.T) {
 	tempDir := t.TempDir()
-	service := domain.NewDKIMService(tempDir)
+	service := domain.NewDKIMService(nil, tempDir)
 
 	t.Run("returns generated key info", func(t *testing.T) {
 		generated, err := service.Generate("get-test.com", "default")
@@ -101,7 +101,7 @@ func TestDKIMService_Get(t *testing.T) {
 
 func TestDKIMService_Delete(t *testing.T) {
 	tempDir := t.TempDir()
-	service := domain.NewDKIMService(tempDir)
+	service := domain.NewDKIMService(nil, tempDir)
 
 	t.Run("deletes existing key", func(t *testing.T) {
 		_, err := service.Generate("delete-test.com", "default")
@@ -127,7 +127,7 @@ func TestDKIMService_Delete(t *testing.T) {
 
 func TestDKIMService_Rotate(t *testing.T) {
 	tempDir := t.TempDir()
-	service := domain.NewDKIMService(tempDir)
+	service := domain.NewDKIMService(nil, tempDir)
 
 	t.Run("generates new key replacing old one", func(t *testing.T) {
 		original, err := service.Generate("rotate-test.com", "default")

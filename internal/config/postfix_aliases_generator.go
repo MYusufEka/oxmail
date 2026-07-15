@@ -20,7 +20,6 @@ func NewPostfixAliasesGenerator(outputPath string) *PostfixAliasesGenerator {
 }
 
 // Generate writes the virtual_alias_maps file from the given aliases.
-// Format: one line per alias, "source destination" separated by space.
 // Only active aliases are included.
 func (g *PostfixAliasesGenerator) Generate(aliases []domain.Alias) error {
 	dir := filepath.Dir(g.outputPath)
@@ -28,14 +27,23 @@ func (g *PostfixAliasesGenerator) Generate(aliases []domain.Alias) error {
 		return fmt.Errorf("create output directory: %w", err)
 	}
 
-	var builder strings.Builder
+	destsBySource := make(map[string][]string)
+	sourceOrder := make([]string, 0)
 	for _, alias := range aliases {
 		if !alias.Active {
 			continue
 		}
-		builder.WriteString(alias.SourceAddress)
+		if _, seen := destsBySource[alias.SourceAddress]; !seen {
+			sourceOrder = append(sourceOrder, alias.SourceAddress)
+		}
+		destsBySource[alias.SourceAddress] = append(destsBySource[alias.SourceAddress], alias.DestinationAddress)
+	}
+
+	var builder strings.Builder
+	for _, src := range sourceOrder {
+		builder.WriteString(src)
 		builder.WriteByte(' ')
-		builder.WriteString(alias.DestinationAddress)
+		builder.WriteString(strings.Join(destsBySource[src], ","))
 		builder.WriteByte('\n')
 	}
 

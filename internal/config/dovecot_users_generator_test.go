@@ -36,8 +36,8 @@ func TestDovecotUsersGenerator_GenerateUserdb(t *testing.T) {
 	gen := config.NewDovecotUsersGenerator(tmpDir)
 
 	users := []domain.User{
-		{Email: "alice@local.test"},
-		{Email: "bob@other.test"},
+		{Email: "alice@local.test", Quota: 1073741824}, // 1 GB
+		{Email: "bob@other.test", Quota: 0},             // unlimited
 	}
 
 	err := gen.GenerateUserdb(users)
@@ -47,8 +47,9 @@ func TestDovecotUsersGenerator_GenerateUserdb(t *testing.T) {
 	require.NoError(t, err)
 
 	lines := string(content)
-	assert.Contains(t, lines, "alice@local.test::5000:5000::/var/mail/vhosts/local.test/alice\n")
+	assert.Contains(t, lines, "alice@local.test::5000:5000::/var/mail/vhosts/local.test/alice:quota_rule=*\\:storage=1073741824B")
 	assert.Contains(t, lines, "bob@other.test::5000:5000::/var/mail/vhosts/other.test/bob\n")
+	assert.NotContains(t, lines, "storage=0")
 }
 
 func TestDovecotUsersGenerator_GenerateAll(t *testing.T) {

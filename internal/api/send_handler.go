@@ -2,35 +2,37 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/MYusufEka/oxmail/internal/domain"
+	"github.com/MYusufEka/oxmail/internal/logs"
 	"github.com/go-chi/chi/v5"
 )
 
-// Sender abstracts email sending for testability.
 type Sender interface {
-	Send(from string, to []string, cc []string, subject, bodyText, bodyHTML string) (string, error)
+	Send(from string, to []string, cc []string, subject, bodyText, bodyHTML string, attachments []domain.SendMailAttachment) (string, error)
 }
 
-// SendHandler handles the POST /api/mail/send endpoint.
 type SendHandler struct {
 	sender    Sender
 	logger    *slog.Logger
+	logBuf    *logs.RingBuffer
 	rateLimit int
 	mu        sync.Mutex
 	sends     map[string][]time.Time
 }
 
-// NewSendHandler creates a new SendHandler with default rate limit of 50/hour.
-func NewSendHandler(sender Sender) *SendHandler {
+func NewSendHandler(sender Sender, logBuf *logs.RingBuffer) *SendHandler {
 	return &SendHandler{
 		sender:    sender,
 		logger:    slog.New(slog.NewJSONHandler(os.Stdout, nil)),
+		logBuf:    logBuf,
 		rateLimit: 50,
 		sends:     make(map[string][]time.Time),
 	}
@@ -69,7 +71,7 @@ func (h *SendHandler) handleSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	messageID, err := h.sender.Send(req.From, req.To, req.CC, req.Subject, req.BodyText, req.BodyHTML)
+	messageID, err := h.sender.Send(req.From, req.To, req.CC, req.Subject, req.BodyText, req.BodyHTML, req.Attachments)
 	if err != nil {
 		h.logger.Error("failed to send email", "error", err, "from", req.From)
 		writeError(w, http.StatusInternalServerError, "SEND_FAILED", "failed to send email")
@@ -77,6 +79,15 @@ func (h *SendHandler) handleSend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.recordSend(authUser)
+
+	if h.logBuf != nil {
+		h.logBuf.Add(logs.LogEntry{
+			Timestamp: time.Now().UTC(),
+			Service:   "api",
+			Level:     "info",
+			Message:   fmt.Sprintf("sent %s → %s subject=%q", req.From, strings.Join(req.To, ","), req.Subject),
+		})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

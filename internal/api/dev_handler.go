@@ -52,7 +52,7 @@ func (h *DevHandler) handleSendTest(w http.ResponseWriter, r *http.Request) {
 		body = "This is a test email sent via the dev endpoint."
 	}
 
-	messageID, err := h.sender.Send(from, []string{to}, nil, subject, body, "")
+	messageID, err := h.sender.Send(from, []string{to}, nil, subject, body, "", nil)
 	if err != nil {
 		h.logger.Error("dev send-test failed", "error", err, "from", from, "to", to)
 		writeError(w, http.StatusInternalServerError, "SEND_FAILED", "failed to send test email")

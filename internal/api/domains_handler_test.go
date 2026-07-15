@@ -112,7 +112,7 @@ func TestDomainsHandler_List(t *testing.T) {
 		var resp api.DomainListResponse
 		err := json.NewDecoder(rec.Body).Decode(&resp)
 		require.NoError(t, err)
-		assert.Empty(t, resp.Domains)
+		assert.Empty(t, resp.Data)
 		assert.Equal(t, 0, resp.Pagination.Total)
 	})
 
@@ -138,7 +138,7 @@ func TestDomainsHandler_List(t *testing.T) {
 		var resp api.DomainListResponse
 		err := json.NewDecoder(rec.Body).Decode(&resp)
 		require.NoError(t, err)
-		assert.Len(t, resp.Domains, 2)
+		assert.Len(t, resp.Data, 2)
 		assert.Equal(t, 3, resp.Pagination.Total)
 	})
 }

@@ -183,6 +183,66 @@ func (s *UserService) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
+// Update partially updates a user. Only non-nil fields are changed.
+// Password is re-hashed with bcrypt cost 12 only if non-empty.
+func (s *UserService) Update(ctx context.Context, id int64, req UpdateUserRequest) (*User, error) {
+	user, err := s.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var sets []string
+	var args []interface{}
+
+	if req.Password != nil && *req.Password != "" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(*req.Password), 12)
+		if err != nil {
+			return nil, fmt.Errorf("hash password: %w", err)
+		}
+		sets = append(sets, "password_hash = ?")
+		args = append(args, string(hash))
+	}
+
+	if req.DisplayName != nil {
+		sets = append(sets, "display_name = ?")
+		args = append(args, *req.DisplayName)
+	}
+
+	if req.Quota != nil {
+		sets = append(sets, "quota = ?")
+		args = append(args, *req.Quota)
+	}
+
+	if len(sets) == 0 {
+		return user, nil
+	}
+
+	now := time.Now().UTC()
+	sets = append(sets, "updated_at = ?")
+	args = append(args, now)
+	args = append(args, id)
+
+	query := fmt.Sprintf("UPDATE users SET %s WHERE id = ?", strings.Join(sets, ", "))
+	_, err = s.db.Conn.ExecContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("update user: %w", err)
+	}
+
+	user.UpdatedAt = now
+	if req.Password != nil && *req.Password != "" {
+		hash, _ := bcrypt.GenerateFromPassword([]byte(*req.Password), 12)
+		user.PasswordHash = string(hash)
+	}
+	if req.DisplayName != nil {
+		user.DisplayName = *req.DisplayName
+	}
+	if req.Quota != nil {
+		user.Quota = *req.Quota
+	}
+
+	return user, nil
+}
+
 // GetByEmail retrieves a user by email address.
 func (s *UserService) GetByEmail(ctx context.Context, email string) (*User, error) {
 	var user User

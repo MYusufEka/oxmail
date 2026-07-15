@@ -191,7 +191,7 @@ func TestUsersHandler_List(t *testing.T) {
 	var resp api.UserListResponse
 	err := json.NewDecoder(rec.Body).Decode(&resp)
 	require.NoError(t, err)
-	assert.Len(t, resp.Users, 2)
+	assert.Len(t, resp.Data, 2)
 	assert.Equal(t, 2, resp.Pagination.Total)
 }
 
@@ -214,7 +214,7 @@ func TestUsersHandler_List_DomainFilter(t *testing.T) {
 	var resp api.UserListResponse
 	err := json.NewDecoder(rec.Body).Decode(&resp)
 	require.NoError(t, err)
-	assert.Len(t, resp.Users, 1)
+	assert.Len(t, resp.Data, 1)
 }
 
 func TestUsersHandler_Delete(t *testing.T) {

@@ -34,8 +34,8 @@ func NewPostfixManager(cfg PostfixConfig, executor CommandExecutor) *PostfixMana
 	}
 }
 
-// ApplyDomainConfig writes the virtual_domains file, runs postmap, and reloads Postfix.
-// Only active domains are included.
+// ApplyDomainConfig writes the virtual_domains file and reloads Postfix.
+// virtual_mailbox_domains is a plain file — no postmap needed.
 func (m *PostfixManager) ApplyDomainConfig(domains []domain.Domain) error {
 	var builder strings.Builder
 	for _, d := range domains {
@@ -62,17 +62,26 @@ func (m *PostfixManager) ApplyDomainConfig(domains []domain.Domain) error {
 	return m.Reload()
 }
 
-// ApplyAliasConfig writes the virtual_aliases file, runs postmap, and reloads Postfix.
-// Only active aliases are included.
+// ApplyAliasConfig writes the virtual_aliases file and reloads Postfix.
+// virtual_alias_maps is a plain file — no postmap needed.
 func (m *PostfixManager) ApplyAliasConfig(aliases []domain.Alias) error {
-	var builder strings.Builder
+	destsBySource := make(map[string][]string)
+	sourceOrder := make([]string, 0)
 	for _, alias := range aliases {
 		if !alias.Active {
 			continue
 		}
-		builder.WriteString(alias.SourceAddress)
+		if _, seen := destsBySource[alias.SourceAddress]; !seen {
+			sourceOrder = append(sourceOrder, alias.SourceAddress)
+		}
+		destsBySource[alias.SourceAddress] = append(destsBySource[alias.SourceAddress], alias.DestinationAddress)
+	}
+
+	var builder strings.Builder
+	for _, src := range sourceOrder {
+		builder.WriteString(src)
 		builder.WriteByte(' ')
-		builder.WriteString(alias.DestinationAddress)
+		builder.WriteString(strings.Join(destsBySource[src], ","))
 		builder.WriteByte('\n')
 	}
 

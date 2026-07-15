@@ -12,11 +12,23 @@ import (
 	"github.com/MYusufEka/oxmail/internal/mail"
 )
 
+// UpdateAliasRequest is the payload for updating an alias.
+type UpdateAliasRequest struct {
+	SourceAddress      string `json:"sourceAddress"`
+	DestinationAddress string `json:"destinationAddress"`
+}
+
 // AliasHandler handles HTTP requests for alias management.
 type AliasHandler struct {
 	service        *domain.AliasService
 	postfixManager *mail.PostfixManager
 	router         *chi.Mux
+}
+
+// AliasListResponse is the envelope for paginated alias lists.
+type AliasListResponse struct {
+	Data       []domain.Alias   `json:"data"`
+	Pagination domain.Pagination `json:"pagination"`
 }
 
 // NewAliasHandler creates a new AliasHandler with routes configured.
@@ -31,6 +43,7 @@ func NewAliasHandler(service *domain.AliasService, postfixManager *mail.PostfixM
 		r.Post("/", h.handleCreate)
 		r.Get("/", h.handleList)
 		r.Get("/{id}", h.handleGet)
+		r.Patch("/{id}", h.handleUpdate)
 		r.Delete("/{id}", h.handleDelete)
 	})
 
@@ -48,6 +61,7 @@ func (h *AliasHandler) RegisterRoutes(r chi.Router) {
 		r.Post("/", h.handleCreate)
 		r.Get("/", h.handleList)
 		r.Get("/{id}", h.handleGet)
+		r.Patch("/{id}", h.handleUpdate)
 		r.Delete("/{id}", h.handleDelete)
 	})
 }
@@ -84,9 +98,22 @@ func (h *AliasHandler) handleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if aliases == nil {
+		aliases = []domain.Alias{}
+	}
+
+	resp := AliasListResponse{
+		Data: aliases,
+		Pagination: domain.Pagination{
+			Page:  1,
+			Limit: len(aliases),
+			Total: len(aliases),
+		},
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(aliases)
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *AliasHandler) handleGet(w http.ResponseWriter, r *http.Request) {
@@ -132,6 +159,69 @@ func (h *AliasHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+}
+
+func (h *AliasHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_id", "invalid alias ID")
+		return
+	}
+
+	var req UpdateAliasRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+
+	if req.SourceAddress == "" || req.DestinationAddress == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "sourceAddress and destinationAddress are required")
+		return
+	}
+
+	alias, err := h.service.Update(id, req.SourceAddress, req.DestinationAddress)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	h.regenerateAliasConfig()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(alias)
+}
+
+func (h *AliasHandler) handleListByDomain(w http.ResponseWriter, r *http.Request) {
+	domainIDStr := chi.URLParam(r, "domainID")
+	domainID, err := strconv.ParseInt(domainIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_id", "invalid domain ID")
+		return
+	}
+
+	aliases, err := h.service.ListByDomainID(domainID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list aliases")
+		return
+	}
+
+	if aliases == nil {
+		aliases = []domain.Alias{}
+	}
+
+	resp := AliasListResponse{
+		Data: aliases,
+		Pagination: domain.Pagination{
+			Page:  1,
+			Limit: len(aliases),
+			Total: len(aliases),
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *AliasHandler) handleServiceError(w http.ResponseWriter, err error) {

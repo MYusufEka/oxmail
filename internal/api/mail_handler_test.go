@@ -18,13 +18,19 @@ import (
 // mockIMAPBridge implements mail.IMAPBridge for handler tests.
 type mockIMAPBridge struct {
 	messages    map[uint32]*domain.MailMessage
+	folders     []domain.MailFolder
 	fetchErr    error
 	deleteErr   error
 	markReadErr error
 	searchErr   error
+	listErr     error
 }
 
 func (m *mockIMAPBridge) FetchInbox(user, password string, page, limit int) ([]domain.MailMessage, int, error) {
+	return m.FetchFolderMessages(user, password, "INBOX", page, limit)
+}
+
+func (m *mockIMAPBridge) FetchFolderMessages(user, password, folder string, page, limit int) ([]domain.MailMessage, int, error) {
 	if m.fetchErr != nil {
 		return nil, 0, m.fetchErr
 	}
@@ -89,6 +95,37 @@ func (m *mockIMAPBridge) SearchMessages(user, password string, query string) ([]
 		}
 	}
 	return results, nil
+}
+
+func (m *mockIMAPBridge) ListFolders(user, password string) ([]domain.MailFolder, error) {
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
+	if m.folders != nil {
+		return m.folders, nil
+	}
+	return []domain.MailFolder{
+		{Name: "INBOX", Delimiter: "/", Unread: 1},
+		{Name: "Sent", Delimiter: "/", Unread: 0},
+		{Name: "Drafts", Delimiter: "/", Unread: 0},
+		{Name: "Trash", Delimiter: "/", Unread: 0},
+	}, nil
+}
+
+func (m *mockIMAPBridge) CreateFolder(user, password, folderName string) error {
+	return nil
+}
+
+func (m *mockIMAPBridge) DeleteFolder(user, password, folderName string) error {
+	return nil
+}
+
+func (m *mockIMAPBridge) RenameFolder(user, password, oldName, newName string) error {
+	return nil
+}
+
+func (m *mockIMAPBridge) MoveMessage(user, password string, uid uint32, fromFolder, toFolder string) error {
+	return nil
 }
 
 func newTestMailMessages() map[uint32]*domain.MailMessage {
@@ -291,4 +328,73 @@ func TestMailHandler_Search_MissingUser(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestMailHandler_GetFolders(t *testing.T) {
+	_, router := setupMailHandler()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/mail/folders?user=alice@local.test&password=secret", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var resp FoldersResponse
+	err := json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, err)
+	assert.Len(t, resp.Folders, 4)
+	assert.Equal(t, "INBOX", resp.Folders[0].Name)
+	assert.Equal(t, 1, resp.Folders[0].Unread)
+}
+
+func TestMailHandler_GetFolders_MissingUser(t *testing.T) {
+	_, router := setupMailHandler()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/mail/folders", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestMailHandler_GetFolderMessages(t *testing.T) {
+	_, router := setupMailHandler()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/mail/folders/Sent/messages?user=alice@local.test&password=secret&page=1&limit=50", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var resp InboxResponse
+	err := json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, err)
+	assert.Equal(t, 2, resp.Pagination.Total)
+	assert.Len(t, resp.Messages, 2)
+}
+
+func TestMailHandler_GetFolderMessages_MissingUser(t *testing.T) {
+	_, router := setupMailHandler()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/mail/folders/Sent/messages", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestMailHandler_GetFolderMessages_DefaultPagination(t *testing.T) {
+	_, router := setupMailHandler()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/mail/folders/INBOX/messages?user=alice@local.test&password=secret", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var resp InboxResponse
+	err := json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, err)
+	assert.Equal(t, 1, resp.Pagination.Page)
+	assert.Equal(t, 50, resp.Pagination.Limit)
 }

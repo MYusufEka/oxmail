@@ -93,6 +93,21 @@ func (s *DomainService) GetDomainByName(ctx context.Context, name string) (*Doma
 	return d, err
 }
 
+func (s *DomainService) GetByID(ctx context.Context, id int64) (string, error) {
+	var name string
+	err := s.db.Conn.QueryRowContext(ctx,
+		"SELECT name FROM domains WHERE id = ?",
+		id,
+	).Scan(&name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrDomainNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("query domain by id: %w", err)
+	}
+	return name, nil
+}
+
 // List returns a paginated list of domains and the total count.
 func (s *DomainService) List(ctx context.Context, page, limit int) ([]Domain, int, error) {
 	if page < 1 {

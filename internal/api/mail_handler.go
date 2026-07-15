@@ -37,14 +37,33 @@ func NewMailHandler(bridge mail.IMAPBridge) *MailHandler {
 	return &MailHandler{bridge: bridge}
 }
 
+// FoldersResponse is the envelope for folder list.
+type FoldersResponse struct {
+	Folders []domain.MailFolder `json:"folders"`
+}
+
 // RegisterRoutes mounts mail routes onto an existing router.
 func (h *MailHandler) RegisterRoutes(r chi.Router) {
 	r.Route("/api/mail", func(r chi.Router) {
 		r.Get("/inbox", h.handleInbox)
+		r.Get("/search", h.handleSearch)
+		r.Get("/folders", h.handleListFolders)
+		r.Post("/folders", h.handleCreateFolder)
+		r.Delete("/folders/{folder}", h.handleDeleteFolder)
+		r.Patch("/folders/{folder}", h.handleRenameFolder)
+		r.Get("/folders/{folder}/messages", h.handleFolderMessages)
+		r.Post("/messages/{uid}/move", h.handleMoveMessage)
 		r.Get("/messages/{id}", h.handleGetMessage)
 		r.Delete("/messages/{id}", h.handleDeleteMessage)
 		r.Patch("/messages/{id}", h.handlePatchMessage)
-		r.Get("/search", h.handleSearch)
+		r.Patch("/messages/{id}/toggle-read", h.handlePatchMessage)
+		r.Route("/{userID}", func(r chi.Router) {
+			r.Get("/inbox", h.handleInbox)
+			r.Get("/messages/{id}", h.handleGetMessage)
+			r.Delete("/messages/{id}", h.handleDeleteMessage)
+			r.Patch("/messages/{id}", h.handlePatchMessage)
+			r.Patch("/messages/{id}/toggle-read", h.handlePatchMessage)
+		})
 	})
 }
 
@@ -194,16 +213,90 @@ func (h *MailHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
+func (h *MailHandler) handleListFolders(w http.ResponseWriter, r *http.Request) {
+	user, password, ok := h.extractCredentials(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "missing_user", "user parameter is required")
+		return
+	}
+
+	folders, err := h.bridge.ListFolders(user, password)
+	if err != nil {
+		h.handleBridgeError(w, err)
+		return
+	}
+
+	if folders == nil {
+		folders = []domain.MailFolder{}
+	}
+
+	resp := FoldersResponse{Folders: folders}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
+}
+
+func (h *MailHandler) handleFolderMessages(w http.ResponseWriter, r *http.Request) {
+	user, password, ok := h.extractCredentials(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "missing_user", "user parameter is required")
+		return
+	}
+
+	folder := chi.URLParam(r, "folder")
+	if folder == "" {
+		writeError(w, http.StatusBadRequest, "missing_folder", "folder parameter is required")
+		return
+	}
+
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 50
+	}
+
+	messages, total, err := h.bridge.FetchFolderMessages(user, password, folder, page, limit)
+	if err != nil {
+		h.handleBridgeError(w, err)
+		return
+	}
+
+	if messages == nil {
+		messages = []domain.MailMessage{}
+	}
+
+	resp := InboxResponse{
+		Messages: messages,
+		Pagination: domain.Pagination{
+			Page:  page,
+			Limit: limit,
+			Total: total,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
+}
+
 func (h *MailHandler) extractCredentials(r *http.Request) (user, password string, ok bool) {
 	user = r.URL.Query().Get("user")
-	if user == "" {
-		return "", "", false
-	}
 	password = r.URL.Query().Get("password")
+
+	if user == "" {
+		user, password, ok = r.BasicAuth()
+		if !ok || user == "" {
+			return "", "", false
+		}
+	}
+
 	if password == "" {
-		// Fall back to Authorization header (Basic auth)
 		password = r.Header.Get("X-Mail-Password")
 	}
+
 	return user, password, true
 }
 
@@ -214,6 +307,139 @@ func (h *MailHandler) parseMessageID(r *http.Request) (uint32, error) {
 		return 0, err
 	}
 	return uint32(id), nil
+}
+
+// CreateFolderRequest is the payload for creating a new folder.
+type CreateFolderRequest struct {
+	Name string `json:"name"`
+}
+
+// RenameFolderRequest is the payload for renaming a folder.
+type RenameFolderRequest struct {
+	NewName string `json:"new_name"`
+}
+
+// MoveMessageRequest is the payload for moving a message between folders.
+type MoveMessageRequest struct {
+	FromFolder string `json:"from_folder"`
+	ToFolder   string `json:"to_folder"`
+}
+
+func (h *MailHandler) handleCreateFolder(w http.ResponseWriter, r *http.Request) {
+	user, password, ok := h.extractCredentials(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "missing_user", "user parameter is required")
+		return
+	}
+
+	var req CreateFolderRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "folder name is required")
+		return
+	}
+
+	if err := h.bridge.CreateFolder(user, password, req.Name); err != nil {
+		h.handleBridgeError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"status": "created", "name": req.Name})
+}
+
+func (h *MailHandler) handleDeleteFolder(w http.ResponseWriter, r *http.Request) {
+	user, password, ok := h.extractCredentials(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "missing_user", "user parameter is required")
+		return
+	}
+
+	folder := chi.URLParam(r, "folder")
+	if folder == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "folder name is required")
+		return
+	}
+
+	if err := h.bridge.DeleteFolder(user, password, folder); err != nil {
+		h.handleBridgeError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+}
+
+func (h *MailHandler) handleRenameFolder(w http.ResponseWriter, r *http.Request) {
+	user, password, ok := h.extractCredentials(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "missing_user", "user parameter is required")
+		return
+	}
+
+	folder := chi.URLParam(r, "folder")
+	if folder == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "folder name is required")
+		return
+	}
+
+	var req RenameFolderRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+	if req.NewName == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "new_name is required")
+		return
+	}
+
+	if err := h.bridge.RenameFolder(user, password, folder, req.NewName); err != nil {
+		h.handleBridgeError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "renamed", "name": req.NewName})
+}
+
+func (h *MailHandler) handleMoveMessage(w http.ResponseWriter, r *http.Request) {
+	user, password, ok := h.extractCredentials(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "missing_user", "user parameter is required")
+		return
+	}
+
+	uidStr := chi.URLParam(r, "uid")
+	uid64, err := strconv.ParseUint(uidStr, 10, 32)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_id", "message UID must be a number")
+		return
+	}
+
+	var req MoveMessageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+	if req.FromFolder == "" || req.ToFolder == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "from_folder and to_folder are required")
+		return
+	}
+
+	if err := h.bridge.MoveMessage(user, password, uint32(uid64), req.FromFolder, req.ToFolder); err != nil {
+		h.handleBridgeError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "moved"})
 }
 
 func (h *MailHandler) handleBridgeError(w http.ResponseWriter, err error) {

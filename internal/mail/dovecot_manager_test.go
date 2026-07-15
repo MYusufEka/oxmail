@@ -38,6 +38,11 @@ func (m *dovecotMockExecutor) Run(name string, args ...string) error {
 	return nil
 }
 
+func (m *dovecotMockExecutor) RunWithOutput(name string, args ...string) (string, error) {
+	m.commands = append(m.commands, dovecotExecCommand{name: name, args: args})
+	return "", m.Run(name, args...)
+}
+
 func dovecotTestUsers() []domain.User {
 	return []domain.User{
 		{
@@ -45,6 +50,7 @@ func dovecotTestUsers() []domain.User {
 			Email:        "alice@example.com",
 			PasswordHash: "$2b$12$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ012",
 			DomainID:     1,
+			Quota:        1073741824, // 1 GB
 			Active:       true,
 		},
 		{
@@ -52,6 +58,7 @@ func dovecotTestUsers() []domain.User {
 			Email:        "bob@example.com",
 			PasswordHash: "$2b$12$zyxwvutsrqponmlkjihgfeZYXWVUTSRQPONMLKJIHGFEDCBA987",
 			DomainID:     1,
+			Quota:        0, // unlimited
 			Active:       true,
 		},
 	}
@@ -93,7 +100,9 @@ func TestApplyUserConfig_WritesUserdbFile(t *testing.T) {
 
 	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
 	assert.Len(t, lines, 2)
-	assert.Equal(t, "alice@example.com::5000:5000::/var/mail/vhosts/example.com/alice", lines[0])
+	// alice has 1 GB quota → quota_rule appended with escaped colon
+	assert.Equal(t, "alice@example.com::5000:5000::/var/mail/vhosts/example.com/alice:quota_rule=*\\:storage=1073741824B", lines[0])
+	// bob has unlimited quota → no quota_rule
 	assert.Equal(t, "bob@example.com::5000:5000::/var/mail/vhosts/example.com/bob", lines[1])
 }
 
@@ -278,4 +287,28 @@ func TestApplyUserConfig_OverwritesPreviousFiles(t *testing.T) {
 	lines := strings.Split(strings.TrimSpace(string(passdbContent)), "\n")
 	assert.Len(t, lines, 1)
 	assert.Contains(t, lines[0], "alice@example.com")
+}
+
+func TestApplyUserConfig_WritesQuotaRule(t *testing.T) {
+	configDir := t.TempDir()
+	mailRoot := t.TempDir()
+	executor := newDovecotMockExecutor()
+	manager := NewDovecotManager(configDir, mailRoot, executor)
+
+	users := []domain.User{
+		{Email: "quota@test.com", Quota: 52428800, Active: true},     // 50 MB
+		{Email: "nolimit@test.com", Quota: 0, Active: true},           // unlimited
+	}
+
+	err := manager.ApplyUserConfig(users)
+	require.NoError(t, err)
+
+	userdbPath := filepath.Join(configDir, "userdb")
+	content, err := os.ReadFile(userdbPath)
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	assert.Len(t, lines, 2)
+	assert.Contains(t, lines[0], ":quota_rule=*\\:storage=52428800")
+	assert.NotContains(t, lines[1], "quota_rule")
 }

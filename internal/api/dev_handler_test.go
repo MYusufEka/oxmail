@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/MYusufEka/oxmail/internal/domain"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ type mockDevSender struct {
 	returnErr   error
 }
 
-func (m *mockDevSender) Send(from string, to []string, cc []string, subject, bodyText, bodyHTML string) (string, error) {
+func (m *mockDevSender) Send(from string, to []string, cc []string, subject, bodyText, bodyHTML string, attachments []domain.SendMailAttachment) (string, error) {
 	m.lastFrom = from
 	m.lastTo = to
 	m.lastSubject = subject

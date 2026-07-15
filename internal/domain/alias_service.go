@@ -103,6 +103,51 @@ func (s *AliasService) List() ([]Alias, error) {
 	return aliases, nil
 }
 
+func (s *AliasService) Update(id int64, sourceAddress, destinationAddress string) (*Alias, error) {
+	if sourceAddress == "" || destinationAddress == "" {
+		return nil, fmt.Errorf("source and destination addresses are required")
+	}
+	if err := validateEmail(sourceAddress); err != nil {
+		return nil, fmt.Errorf("invalid source address: %w", err)
+	}
+	if err := validateEmail(destinationAddress); err != nil {
+		return nil, fmt.Errorf("invalid destination address: %w", err)
+	}
+
+	existing, err := s.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if existing.SourceAddress == sourceAddress && existing.DestinationAddress == destinationAddress {
+		return existing, nil
+	}
+
+	sourceDomain := extractDomain(sourceAddress)
+	domainID, err := s.lookupDomainID(sourceDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.checkDuplicateExcludeID(sourceAddress, destinationAddress, id); err != nil {
+		return nil, err
+	}
+
+	if err := s.detectCircularUpdate(id, sourceAddress, destinationAddress); err != nil {
+		return nil, err
+	}
+
+	_, err = s.conn.Exec(
+		`UPDATE aliases SET source_address = ?, destination_address = ?, domain_id = ? WHERE id = ?`,
+		sourceAddress, destinationAddress, domainID, id,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("update alias: %w", err)
+	}
+
+	return s.Get(id)
+}
+
 // Delete removes an alias by ID.
 func (s *AliasService) Delete(id int64) error {
 	result, err := s.conn.Exec(`DELETE FROM aliases WHERE id = ?`, id)
@@ -125,6 +170,27 @@ func (s *AliasService) Delete(id int64) error {
 // GetAll returns all aliases (used by config generators).
 func (s *AliasService) GetAll() ([]Alias, error) {
 	return s.List()
+}
+
+func (s *AliasService) ListByDomainID(domainID int64) ([]Alias, error) {
+	rows, err := s.conn.Query(
+		`SELECT id, source_address, destination_address, active, created_at FROM aliases WHERE domain_id = ? ORDER BY id`,
+		domainID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query aliases by domain: %w", err)
+	}
+	defer rows.Close()
+
+	var aliases []Alias
+	for rows.Next() {
+		var alias Alias
+		if err := rows.Scan(&alias.ID, &alias.SourceAddress, &alias.DestinationAddress, &alias.Active, &alias.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan alias: %w", err)
+		}
+		aliases = append(aliases, alias)
+	}
+	return aliases, rows.Err()
 }
 
 func (s *AliasService) lookupDomainID(domainName string) (int64, error) {
@@ -186,6 +252,54 @@ func (s *AliasService) detectCircular(source, destination string) error {
 }
 
 // reachable checks if target is reachable from start via the graph.
+func (s *AliasService) checkDuplicateExcludeID(source, destination string, excludeID int64) error {
+	var count int
+	err := s.conn.QueryRow(
+		`SELECT COUNT(*) FROM aliases WHERE source_address = ? AND destination_address = ? AND id != ?`,
+		source, destination, excludeID,
+	).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("check duplicate: %w", err)
+	}
+	if count > 0 {
+		return fmt.Errorf("alias already exists: %s -> %s", source, destination)
+	}
+	return nil
+}
+
+func (s *AliasService) detectCircularUpdate(id int64, source, destination string) error {
+	rows, err := s.conn.Query(`SELECT source_address, destination_address, id FROM aliases`)
+	if err != nil {
+		return fmt.Errorf("query aliases for cycle detection: %w", err)
+	}
+	defer rows.Close()
+
+	graph := make(map[string][]string)
+	for rows.Next() {
+		var src, dst string
+		var rowID int64
+		if err := rows.Scan(&src, &dst, &rowID); err != nil {
+			return fmt.Errorf("scan alias for cycle detection: %w", err)
+		}
+		// Skip the alias being updated.
+		if rowID == id {
+			continue
+		}
+		graph[src] = append(graph[src], dst)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate aliases for cycle detection: %w", err)
+	}
+
+	graph[source] = append(graph[source], destination)
+
+	if reachable(graph, destination, source) {
+		return fmt.Errorf("circular alias detected: %s -> %s creates a cycle", source, destination)
+	}
+
+	return nil
+}
+
 func reachable(graph map[string][]string, start, target string) bool {
 	visited := make(map[string]bool)
 	queue := []string{start}

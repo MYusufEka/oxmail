@@ -48,7 +48,11 @@ func (c *Collector) Unsubscribe(ch chan LogEntry) {
 	close(ch)
 }
 
-// Start begins tailing all configured log files in background goroutines.
+func (c *Collector) Emit(entry LogEntry) {
+	entry.ID = c.nextID.Add(1)
+	c.buffer.Add(entry)
+	c.broadcast(entry)
+}
 func (c *Collector) Start(ctx context.Context) {
 	for _, path := range c.paths {
 		go c.tailFile(ctx, path)

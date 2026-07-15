@@ -98,6 +98,7 @@ func TestSMTPSender_Send_Success(t *testing.T) {
 		"Test Subject",
 		"Hello plain text",
 		"<p>Hello HTML</p>",
+		nil,
 	)
 
 	require.NoError(t, err)
@@ -132,6 +133,7 @@ func TestSMTPSender_Send_MultipleRecipients(t *testing.T) {
 		"Multi Recipient",
 		"body text",
 		"",
+		nil,
 	)
 
 	require.NoError(t, err)
@@ -157,6 +159,7 @@ func TestSMTPSender_Send_TextOnly(t *testing.T) {
 		"Plain Only",
 		"just text",
 		"",
+		nil,
 	)
 
 	require.NoError(t, err)
@@ -179,6 +182,7 @@ func TestSMTPSender_Send_ConnectionError(t *testing.T) {
 		"Subject",
 		"body",
 		"",
+		nil,
 	)
 
 	assert.Error(t, err)
@@ -197,6 +201,7 @@ func TestSMTPSender_Send_EmptyRecipients(t *testing.T) {
 		"Subject",
 		"body",
 		"",
+		nil,
 	)
 
 	assert.Error(t, err)
@@ -216,6 +221,7 @@ func TestSMTPSender_Send_EmptyFrom(t *testing.T) {
 		"Subject",
 		"body",
 		"",
+		nil,
 	)
 
 	assert.Error(t, err)

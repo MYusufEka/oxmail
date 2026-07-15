@@ -14,7 +14,7 @@ import (
 
 // DomainListResponse is the envelope for paginated domain lists.
 type DomainListResponse struct {
-	Domains    []domain.Domain   `json:"domains"`
+	Data       []domain.Domain   `json:"data"`
 	Pagination domain.Pagination `json:"pagination"`
 }
 
@@ -60,6 +60,23 @@ func (h *DomainsHandler) RegisterRoutes(r chi.Router) {
 	})
 }
 
+func RegisterDomainScopedRoutes(r chi.Router, usersH *UsersHandler, aliasH *AliasHandler) {
+	r.Route("/api/domains/{domainID}", func(r chi.Router) {
+		r.Route("/users", func(r chi.Router) {
+			r.Get("/", usersH.handleListByDomain)
+			r.Post("/", usersH.handleCreate)
+			r.Patch("/{id}", usersH.handleUpdate)
+			r.Delete("/{id}", usersH.handleDelete)
+		})
+		r.Route("/aliases", func(r chi.Router) {
+			r.Get("/", aliasH.handleListByDomain)
+			r.Post("/", aliasH.handleCreate)
+			r.Patch("/{id}", aliasH.handleUpdate)
+			r.Delete("/{id}", aliasH.handleDelete)
+		})
+	})
+}
+
 func (h *DomainsHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	var req domain.CreateDomainRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -102,7 +119,7 @@ func (h *DomainsHandler) handleList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := DomainListResponse{
-		Domains: domains,
+		Data: domains,
 		Pagination: domain.Pagination{
 			Page:  page,
 			Limit: limit,

@@ -16,7 +16,7 @@ import (
 func setupDKIMRouter(t *testing.T) (http.Handler, *domain.DKIMService) {
 	t.Helper()
 	tempDir := t.TempDir()
-	dkimService := domain.NewDKIMService(tempDir)
+	dkimService := domain.NewDKIMService(nil, tempDir)
 
 	r := chi.NewRouter()
 	api.RegisterDKIMRoutes(r, dkimService)

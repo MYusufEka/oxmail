@@ -16,9 +16,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	authmw "github.com/MYusufEka/oxmail/internal/api/middleware"
+	"github.com/MYusufEka/oxmail/internal/config"
 	"github.com/MYusufEka/oxmail/internal/database"
 	"github.com/MYusufEka/oxmail/internal/domain"
 	"github.com/MYusufEka/oxmail/internal/health"
+	"github.com/MYusufEka/oxmail/internal/logs"
 	"github.com/MYusufEka/oxmail/internal/mail"
 )
 
@@ -82,6 +84,23 @@ func (s *Server) Router() *chi.Mux {
 
 // registerRoutes sets up all API routes.
 func (s *Server) registerRoutes(conn *sql.DB, jwtSecret, adminPassword string) {
+	// Render config templates on startup
+	mailDomain := os.Getenv("OXMAIL_DOMAIN")
+	if mailDomain == "" {
+		mailDomain = "local.test"
+	}
+	hostname := fmt.Sprintf("mail.%s", mailDomain)
+	if err := config.RenderAll("/etc/oxmail", config.RenderPayload{
+		Hostname:         hostname,
+		Domain:           mailDomain,
+		MessageSizeLimit: "10240000",
+		DevMode:          IsDevMode(),
+	}); err != nil {
+		s.logger.Error("failed to render config templates", "error", err)
+	} else {
+		s.logger.Info("config templates rendered", "output", "/etc/oxmail")
+	}
+
 	// Public routes (no auth required)
 	checkers := map[string]health.ServiceChecker{
 		"postfix": &health.PostfixChecker{Address: "postfix:25", Timeout: 3 * time.Second},
@@ -91,9 +110,38 @@ func (s *Server) registerRoutes(conn *sql.DB, jwtSecret, adminPassword string) {
 	}
 	healthSvc := health.NewService(checkers, "0.1.0")
 	s.router.Get("/health", newHealthHandler(healthSvc))
+	s.router.Get("/api/health", newHealthHandler(healthSvc)) // frontend calls this
+
+	// Logs handler (public REST + WebSocket)
+	logBuffer := logs.NewRingBuffer(1000)
+	logParser := logs.NewParser()
+	logCollector := logs.NewCollector(nil, logBuffer, logParser)
+	logsHandler := NewLogsHandler(logBuffer, logCollector)
+	s.router.Get("/api/logs", logsHandler.HandleGetLogs)
+	s.router.Get("/api/logs/stream", logsHandler.HandleStream)
 
 	// Auth endpoint (public)
-	authHandler := NewAuthHandler(jwtSecret, adminPassword)
+	var userSvc *domain.UserService
+	var dovecotMgr *mail.DovecotManager
+	var postfixMgr *mail.PostfixManager
+	var domainSvc *domain.DomainService
+
+	if conn != nil {
+		db := &database.DB{Conn: conn}
+		domainSvc = domain.NewDomainService(db)
+		userSvc = domain.NewUserService(db, domainSvc)
+		postfixMgr = mail.NewPostfixManager(mail.PostfixConfig{
+			DomainsPath: "/etc/oxmail/postfix/virtual_domains",
+			AliasesPath: "/etc/oxmail/postfix/virtual_aliases",
+		}, &mail.DockerExecExecutor{ContainerName: "oxmail-postfix"})
+		dovecotMgr = mail.NewDovecotManager(
+			"/etc/oxmail/dovecot",
+			"/var/mail/vhosts",
+			&mail.DockerExecExecutor{ContainerName: "oxmail-dovecot"},
+		)
+	}
+
+	authHandler := NewAuthHandler(jwtSecret, adminPassword, userSvc, dovecotMgr)
 	authHandler.RegisterRoutes(s.router)
 
 	// Protected routes group
@@ -103,29 +151,20 @@ func (s *Server) registerRoutes(conn *sql.DB, jwtSecret, adminPassword string) {
 		}
 
 		if conn != nil {
-			db := &database.DB{Conn: conn}
-
-			postfixMgr := mail.NewPostfixManager(mail.PostfixConfig{
-				DomainsPath: "/etc/postfix/virtual_domains",
-				AliasesPath: "/etc/postfix/virtual_aliases",
-			}, &mail.ExecCommandExecutor{})
-
 			aliasSvc := domain.NewAliasService(conn)
 			aliasHandler := NewAliasHandler(aliasSvc, postfixMgr)
 			aliasHandler.RegisterRoutes(r)
 
-			domainSvc := domain.NewDomainService(db)
 			domainsHandler := NewDomainsHandler(domainSvc, "/etc/oxmail/postfix/virtual_domains", postfixMgr)
 			domainsHandler.RegisterRoutes(r)
 
-			userSvc := domain.NewUserService(db, domainSvc)
-			dovecotMgr := mail.NewDovecotManager(
-				"/etc/dovecot",
-				"/var/mail/vhosts",
-				&mail.ExecCommandExecutor{},
-			)
-			usersHandler := NewUsersHandler(userSvc, dovecotMgr)
+			usersHandler := NewUsersHandler(userSvc, dovecotMgr).WithDomainResolver(domainSvc)
 			usersHandler.RegisterRoutes(r)
+			RegisterDomainScopedRoutes(r, usersHandler, aliasHandler)
+
+			contactSvc := domain.NewContactService(conn)
+			contactsHandler := NewContactsHandler(contactSvc)
+			contactsHandler.RegisterRoutes(r)
 		}
 
 		// Mail handler (IMAP bridge) — works without DB
@@ -133,8 +172,29 @@ func (s *Server) registerRoutes(conn *sql.DB, jwtSecret, adminPassword string) {
 		mailHandler := NewMailHandler(imapBridge)
 		mailHandler.RegisterRoutes(r)
 
+		// Sieve handler — manage Dovecot sieve scripts
+		sieveMgr := mail.NewSieveManager(
+			"/var/lib/sieve/scripts",
+			"/var/lib/sieve/global",
+			&mail.DockerExecExecutor{ContainerName: "oxmail-dovecot"},
+		)
+		if err := sieveMgr.SetGlobalScript("spam-global", mail.SpamGlobalSieveScript); err != nil {
+			s.logger.Error("failed to deploy global spam sieve script", "error", err)
+		} else {
+			s.logger.Info("global spam sieve script deployed")
+			// Reload dovecot to pick up sieve_before config and compiled script
+			if dovecotMgr != nil {
+				if err := dovecotMgr.Reload(); err != nil {
+					s.logger.Error("failed to reload dovecot after sieve deploy", "error", err)
+				}
+			}
+		}
+		sieveHandler := NewSieveHandler(sieveMgr)
+		sieveHandler.RegisterRoutes(r)
+
 		// DNS records and verification
-		dkimSvc := domain.NewDKIMService("/etc/oxmail/dkim")
+		dkimSvc := domain.NewDKIMService(conn, "/etc/oxmail/dkim")
+		RegisterDKIMRoutes(r, dkimSvc)
 		dnsHandler := NewDNSHandler(
 			os.Getenv("OXMAIL_DOMAIN"),
 			os.Getenv("OXMAIL_PUBLIC_IP"),
@@ -145,9 +205,9 @@ func (s *Server) registerRoutes(conn *sql.DB, jwtSecret, adminPassword string) {
 
 		smtpSender := mail.NewSMTPSender(mail.SMTPSenderConfig{
 			Host: "postfix",
-			Port: "587",
+			Port: "25",
 		})
-		sendHandler := NewSendHandler(smtpSender)
+		sendHandler := NewSendHandler(smtpSender, logBuffer)
 		if IsDevMode() {
 			sendHandler.rateLimit = 1000
 		}
@@ -158,7 +218,7 @@ func (s *Server) registerRoutes(conn *sql.DB, jwtSecret, adminPassword string) {
 	if IsDevMode() {
 		smtpSender := mail.NewSMTPSender(mail.SMTPSenderConfig{
 			Host: "postfix",
-			Port: "587",
+			Port: "25",
 		})
 		devHandler := NewDevHandler(smtpSender)
 		devHandler.RegisterRoutes(s.router)

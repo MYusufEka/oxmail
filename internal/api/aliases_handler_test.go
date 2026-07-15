@@ -146,10 +146,12 @@ func TestAliasHandler_List(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var aliases []domain.Alias
-	err := json.NewDecoder(rec.Body).Decode(&aliases)
+	var aliasResp struct {
+		Data []domain.Alias `json:"data"`
+	}
+	err := json.NewDecoder(rec.Body).Decode(&aliasResp)
 	require.NoError(t, err)
-	assert.Len(t, aliases, 2)
+	assert.Len(t, aliasResp.Data, 2)
 }
 
 func TestAliasHandler_Get(t *testing.T) {

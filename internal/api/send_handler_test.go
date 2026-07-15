@@ -15,15 +15,15 @@ import (
 
 // mockSMTPSender implements the Sender interface for testing.
 type mockSMTPSender struct {
-	sendFunc func(from string, to []string, cc []string, subject, bodyText, bodyHTML string) (string, error)
+	sendFunc func(from string, to []string, cc []string, subject, bodyText, bodyHTML string, attachments []domain.SendMailAttachment) (string, error)
 }
 
-func (m *mockSMTPSender) Send(from string, to []string, cc []string, subject, bodyText, bodyHTML string) (string, error) {
-	return m.sendFunc(from, to, cc, subject, bodyText, bodyHTML)
+func (m *mockSMTPSender) Send(from string, to []string, cc []string, subject, bodyText, bodyHTML string, attachments []domain.SendMailAttachment) (string, error) {
+	return m.sendFunc(from, to, cc, subject, bodyText, bodyHTML, attachments)
 }
 
 func newTestSendHandler(sender Sender) (*SendHandler, *chi.Mux) {
-	handler := NewSendHandler(sender)
+	handler := NewSendHandler(sender, nil)
 	router := chi.NewRouter()
 	handler.RegisterRoutes(router)
 	return handler, router
@@ -31,7 +31,7 @@ func newTestSendHandler(sender Sender) (*SendHandler, *chi.Mux) {
 
 func TestSendHandler_Success(t *testing.T) {
 	sender := &mockSMTPSender{
-		sendFunc: func(from string, to []string, cc []string, subject, bodyText, bodyHTML string) (string, error) {
+		sendFunc: func(from string, to []string, cc []string, subject, bodyText, bodyHTML string, attachments []domain.SendMailAttachment) (string, error) {
 			return "<abc-123@example.com>", nil
 		},
 	}
@@ -63,7 +63,7 @@ func TestSendHandler_Success(t *testing.T) {
 
 func TestSendHandler_SenderMismatch(t *testing.T) {
 	sender := &mockSMTPSender{
-		sendFunc: func(from string, to []string, cc []string, subject, bodyText, bodyHTML string) (string, error) {
+		sendFunc: func(from string, to []string, cc []string, subject, bodyText, bodyHTML string, attachments []domain.SendMailAttachment) (string, error) {
 			return "", nil
 		},
 	}
@@ -94,7 +94,7 @@ func TestSendHandler_SenderMismatch(t *testing.T) {
 
 func TestSendHandler_MissingAuthUser(t *testing.T) {
 	sender := &mockSMTPSender{
-		sendFunc: func(from string, to []string, cc []string, subject, bodyText, bodyHTML string) (string, error) {
+		sendFunc: func(from string, to []string, cc []string, subject, bodyText, bodyHTML string, attachments []domain.SendMailAttachment) (string, error) {
 			return "", nil
 		},
 	}
@@ -120,7 +120,7 @@ func TestSendHandler_MissingAuthUser(t *testing.T) {
 
 func TestSendHandler_InvalidJSON(t *testing.T) {
 	sender := &mockSMTPSender{
-		sendFunc: func(from string, to []string, cc []string, subject, bodyText, bodyHTML string) (string, error) {
+		sendFunc: func(from string, to []string, cc []string, subject, bodyText, bodyHTML string, attachments []domain.SendMailAttachment) (string, error) {
 			return "", nil
 		},
 	}
@@ -138,7 +138,7 @@ func TestSendHandler_InvalidJSON(t *testing.T) {
 
 func TestSendHandler_EmptyTo(t *testing.T) {
 	sender := &mockSMTPSender{
-		sendFunc: func(from string, to []string, cc []string, subject, bodyText, bodyHTML string) (string, error) {
+		sendFunc: func(from string, to []string, cc []string, subject, bodyText, bodyHTML string, attachments []domain.SendMailAttachment) (string, error) {
 			return "", nil
 		},
 	}
@@ -164,12 +164,12 @@ func TestSendHandler_EmptyTo(t *testing.T) {
 
 func TestSendHandler_RateLimit(t *testing.T) {
 	sender := &mockSMTPSender{
-		sendFunc: func(from string, to []string, cc []string, subject, bodyText, bodyHTML string) (string, error) {
+		sendFunc: func(from string, to []string, cc []string, subject, bodyText, bodyHTML string, attachments []domain.SendMailAttachment) (string, error) {
 			return "<msg@example.com>", nil
 		},
 	}
 
-	handler := NewSendHandler(sender)
+	handler := NewSendHandler(sender, nil)
 	handler.rateLimit = 3 // Low limit for testing
 	router := chi.NewRouter()
 	handler.RegisterRoutes(router)
@@ -207,12 +207,12 @@ func TestSendHandler_RateLimit(t *testing.T) {
 
 func TestSendHandler_RateLimit_DifferentUsers(t *testing.T) {
 	sender := &mockSMTPSender{
-		sendFunc: func(from string, to []string, cc []string, subject, bodyText, bodyHTML string) (string, error) {
+		sendFunc: func(from string, to []string, cc []string, subject, bodyText, bodyHTML string, attachments []domain.SendMailAttachment) (string, error) {
 			return "<msg@example.com>", nil
 		},
 	}
 
-	handler := NewSendHandler(sender)
+	handler := NewSendHandler(sender, nil)
 	handler.rateLimit = 2
 	router := chi.NewRouter()
 	handler.RegisterRoutes(router)

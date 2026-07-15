@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/MYusufEka/oxmail/internal/domain"
@@ -58,6 +59,16 @@ func (m *DovecotManager) CreateMaildir(email string, domainName string) error {
 		}
 	}
 
+	// Chown full tree from domain dir down so Dovecot (vmail) can access
+	domainDir := filepath.Join(m.mailRoot, domainName)
+	userDir := filepath.Join(domainDir, localPart)
+	os.Chown(domainDir, m.uid, m.gid)
+	os.Chown(userDir, m.uid, m.gid)
+	os.Chown(maildirBase, m.uid, m.gid)
+	for _, sub := range []string{"cur", "new", "tmp"} {
+		os.Chown(filepath.Join(maildirBase, sub), m.uid, m.gid)
+	}
+
 	return nil
 }
 
@@ -71,32 +82,65 @@ func (m *DovecotManager) FlushAuthCache() error {
 	return m.executor.Run("doveadm", "auth", "cache", "flush")
 }
 
+// MaildirSize returns disk usage in bytes for a user's maildir.
+// Returns 0 on error to avoid breaking the user list.
+func (m *DovecotManager) MaildirSize(email, domainName string) (int64, error) {
+	localPart := extractLocalPart(email)
+	maildirPath := filepath.Join(m.mailRoot, domainName, localPart)
+
+	out, err := m.executor.RunWithOutput("du", "-sb", maildirPath)
+	if err != nil {
+		return 0, fmt.Errorf("du failed: %w", err)
+	}
+
+	parts := strings.SplitN(out, "\t", 2)
+	if len(parts) < 2 {
+		return 0, fmt.Errorf("unexpected du output: %s", out)
+	}
+
+	size, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse du size: %w", err)
+	}
+
+	return size, nil
+}
+
 func (m *DovecotManager) writePassdb(users []domain.User) error {
-	if err := os.MkdirAll(m.configDir, 0750); err != nil {
+	if err := os.MkdirAll(m.configDir, 0755); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
+	os.Chmod(m.configDir, 0755)
 
 	var builder strings.Builder
 	for _, user := range users {
 		fmt.Fprintf(&builder, "%s:{BLF-CRYPT}%s\n", user.Email, user.PasswordHash)
 	}
 
-	return atomicWrite(filepath.Join(m.configDir, "passdb"), []byte(builder.String()), 0640)
+	return atomicWrite(filepath.Join(m.configDir, "passdb"), []byte(builder.String()), 0644)
 }
 
 func (m *DovecotManager) writeUserdb(users []domain.User) error {
-	if err := os.MkdirAll(m.configDir, 0750); err != nil {
+	if err := os.MkdirAll(m.configDir, 0755); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
+	os.Chmod(m.configDir, 0755)
 
 	var builder strings.Builder
 	for _, user := range users {
 		localPart, domainPart := splitEmail(user.Email)
 		home := fmt.Sprintf("/var/mail/vhosts/%s/%s", domainPart, localPart)
-		fmt.Fprintf(&builder, "%s::5000:5000::%s\n", user.Email, home)
+		if user.Quota > 0 {
+			// quota_rule value contains ':' which Dovecot passwd-file parser would
+			// treat as field separator. Escape with '\:' so Dovecot reads the full
+			// value "quota_rule=*:storage=<bytes>" as a single extra field.
+			fmt.Fprintf(&builder, "%s::5000:5000::%s:quota_rule=*\\:storage=%dB\n", user.Email, home, user.Quota)
+		} else {
+			fmt.Fprintf(&builder, "%s::5000:5000::%s\n", user.Email, home)
+		}
 	}
 
-	return atomicWrite(filepath.Join(m.configDir, "userdb"), []byte(builder.String()), 0640)
+	return atomicWrite(filepath.Join(m.configDir, "userdb"), []byte(builder.String()), 0644)
 }
 
 // atomicWrite writes data to a temp file then renames it to the target path.
