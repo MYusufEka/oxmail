@@ -155,7 +155,7 @@ func newTestMailMessages() map[uint32]*domain.MailMessage {
 
 func setupMailHandler() (*MailHandler, *chi.Mux) {
 	mock := &mockIMAPBridge{messages: newTestMailMessages()}
-	handler := NewMailHandler(mock)
+	handler := NewMailHandler(mock, nil)
 	router := chi.NewRouter()
 	handler.RegisterRoutes(router)
 	return handler, router

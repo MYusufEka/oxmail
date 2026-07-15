@@ -29,12 +29,12 @@ type MarkReadRequest struct {
 
 // MailHandler handles HTTP requests for webmail operations.
 type MailHandler struct {
-	bridge mail.IMAPBridge
+	bridge        mail.IMAPBridge
+	queueExecutor mail.CommandExecutor
 }
 
-// NewMailHandler creates a new MailHandler with the given IMAP bridge.
-func NewMailHandler(bridge mail.IMAPBridge) *MailHandler {
-	return &MailHandler{bridge: bridge}
+func NewMailHandler(bridge mail.IMAPBridge, queueExecutor mail.CommandExecutor) *MailHandler {
+	return &MailHandler{bridge: bridge, queueExecutor: queueExecutor}
 }
 
 // FoldersResponse is the envelope for folder list.
@@ -45,6 +45,7 @@ type FoldersResponse struct {
 // RegisterRoutes mounts mail routes onto an existing router.
 func (h *MailHandler) RegisterRoutes(r chi.Router) {
 	r.Route("/api/mail", func(r chi.Router) {
+		r.Get("/queue", h.handleQueue)
 		r.Get("/inbox", h.handleInbox)
 		r.Get("/search", h.handleSearch)
 		r.Get("/folders", h.handleListFolders)
@@ -440,6 +441,16 @@ func (h *MailHandler) handleMoveMessage(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "moved"})
+}
+
+func (h *MailHandler) handleQueue(w http.ResponseWriter, r *http.Request) {
+	status, err := mail.GetQueueStatus(h.queueExecutor)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "queue_error", "failed to get queue status")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(status)
 }
 
 func (h *MailHandler) handleBridgeError(w http.ResponseWriter, err error) {
