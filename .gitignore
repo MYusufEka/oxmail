@@ -66,3 +66,6 @@ logs/
 
 # Graphify knowledge graph output
 graphify-out/
+
+# DB backups
+backups/

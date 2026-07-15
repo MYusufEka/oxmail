@@ -373,3 +373,35 @@ ss -tlnp | grep -E ":(25|80|443|465|587|993)"
 # Rebuild from scratch
 docker compose --profile prod -f docker-compose.yml -f docker-compose.prod.yml up -d --build --force-recreate
 ```
+
+## DNS Configuration
+
+These DNS records are required for email deliverability. Set them at your domain registrar.
+
+| Type | Name | Value | Purpose |
+|------|------|-------|---------|
+| TXT | `@` | `v=spf1 mx a:mail.{domain} ~all` | SPF — authorize your server to send |
+| TXT | `_dmarc` | `v=DMARC1; p=reject; rua=mailto:dmarc@{domain}; pct=100` | DMARC — enforce SPF/DKIM policy |
+| TXT | `{selector}._domainkey` | `v=DKIM1; k=rsa; p={public_key}` | DKIM — sign outbound email (get key from Admin UI → DKIM page) |
+| MX | `@` | `10 mail.{domain}` | MX — tell world to deliver here |
+| CNAME | `autodiscover` | `{domain}` | AutoDiscover — mail client auto-setup |
+
+### PTR / Reverse DNS
+
+Contact your VPS provider (DigitalOcean, Linode, Vultr, Hetzner) to set a PTR record:
+- IP: `{your_public_ip}`
+- PTR value: `mail.{domain}`
+
+Most providers have this in the server settings panel. Without rDNS, Gmail and Outlook may reject your email.
+
+### Verification
+
+After setting DNS records, verify with:
+
+```bash
+dig TXT {domain} +short          # SPF
+dig TXT _dmarc.{domain} +short   # DMARC
+dig MX {domain} +short           # MX
+```
+
+Use [MXToolbox](https://mxtoolbox.com) for full deliverability checks.

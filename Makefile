@@ -1,4 +1,4 @@
-.PHONY: up down build test test-go test-web test-e2e lint logs dev seed reset clean help env prod prod-down prod-test
+.PHONY: up down build test test-go test-web test-e2e lint logs dev seed reset clean help env prod prod-down prod-test backup
 
 # Default target
 .DEFAULT_GOAL := help
@@ -75,6 +75,10 @@ prod-down:
 ## prod-test: Run production integration tests
 prod-test:
 	./tests/e2e/production_test.sh
+
+## backup: Backup SQLite DB from API container to backups/
+backup:
+	./scripts/backup.sh
 
 ## clean: Remove all containers, volumes, and build artifacts
 clean:

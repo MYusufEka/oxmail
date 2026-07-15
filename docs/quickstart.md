@@ -128,6 +128,10 @@ To stop and wipe all data (volumes):
 docker compose down -v
 ```
 
+## Email Deliverability
+
+After setup, configure DNS records so your email reaches recipients' inboxes. See [DNS Configuration in production.md](production.md#dns-configuration) for the required SPF, DKIM, DMARC, MX, and PTR records.
+
 ## Next steps
 
 - [Architecture overview](architecture.md) for how the pieces fit together
