@@ -1,6 +1,9 @@
 import type {
   Contact,
+  DailyStat,
   Domain,
+  MailQueueStatus,
+  StatsSummary,
   User,
   Alias,
   DKIMKey,
@@ -13,6 +16,7 @@ import type {
   MailFolder,
   InboxResponse,
   FoldersResponse,
+  ThreadsResponse,
   PaginatedResponse,
   CreateContactRequest,
   CreateDomainRequest,
@@ -27,6 +31,7 @@ import type {
   ChangePasswordResponse,
   ErrorResponse,
   SieveResponse,
+  UserImportResult,
 } from "@/types/api";
 
 const API_BASE_URL =
@@ -230,6 +235,13 @@ export const apiClient = {
     return request(`/api/mail/folders/${encodeURIComponent(folder)}/messages${base}${creds}`);
   },
 
+  getThreads(folder: string, user: string, params?: PaginationParams): Promise<ThreadsResponse> {
+    const base = buildQuery(params);
+    const userEmail = encodeURIComponent(user);
+    const creds = base ? `&user=${userEmail}&password=TestPass123!` : `?user=${userEmail}&password=TestPass123!`;
+    return request(`/api/mail/folders/${encodeURIComponent(folder)}/threads${base}${creds}`);
+  },
+
   // Auth
   changePassword(payload: ChangePasswordRequest): Promise<ChangePasswordResponse> {
     return request("/api/auth/change-password", {
@@ -312,6 +324,30 @@ export const apiClient = {
       method: "POST",
       headers: { "X-Mail-User": userEmail },
       body: JSON.stringify({ from_folder: fromFolder, to_folder: toFolder }),
+    });
+  },
+
+  // Stats
+  getStats(days: number): Promise<DailyStat[]> {
+    return request(`/api/stats?days=${days}`);
+  },
+
+  getStatsSummary(): Promise<StatsSummary> {
+    return request("/api/stats/summary");
+  },
+
+  // Mail queue
+  getMailQueue(): Promise<MailQueueStatus> {
+    return request("/api/mail/queue");
+  },
+
+  importUsers(domainId: number, file: File): Promise<UserImportResult> {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request(`/api/domains/${domainId}/users/import`, {
+      method: "POST",
+      body: formData,
+      headers: {},
     });
   },
 

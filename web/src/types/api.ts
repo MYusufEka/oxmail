@@ -79,6 +79,15 @@ export interface MailMessage {
   receivedAt: string;
 }
 
+export interface MailThread {
+  threadId: string;
+  subject: string;
+  messages: MailMessage[];
+  lastDate: string;
+  participantCount: number;
+  unreadCount: number;
+}
+
 export interface Pagination {
   page: number;
   limit: number;
@@ -104,6 +113,10 @@ export interface MailFolder {
 
 export interface FoldersResponse {
   folders: MailFolder[];
+}
+
+export interface ThreadsResponse {
+  threads: MailThread[];
 }
 
 export interface DNSRecord {
@@ -227,4 +240,38 @@ export interface SieveResponse {
 
 export interface SieveSetRequest {
   script: string;
+}
+
+export interface DailyStat {
+  date: string;
+  sent: number;
+  received: number;
+  bounced: number;
+  spamCaught: number;
+}
+
+export interface StatsSummary {
+  totalSent: number;
+  totalReceived: number;
+  totalBounced: number;
+  totalSpamCaught: number;
+}
+
+export interface MailQueueStatus {
+  total: number;
+  deferred: number;
+  active: number;
+  oldestAge: string;
+}
+
+export interface UserImportError {
+  row: number;
+  email?: string;
+  error: string;
+}
+
+export interface UserImportResult {
+  created: number;
+  skipped: number;
+  errors: UserImportError[];
 }

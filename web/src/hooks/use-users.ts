@@ -2,13 +2,24 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, type PaginationParams } from "@/lib/api-client";
-import type { User, CreateUserRequest, UpdateUserRequest, PaginatedResponse } from "@/types/api";
+import type { User, CreateUserRequest, UpdateUserRequest, PaginatedResponse, UserImportResult } from "@/types/api";
 
 export function useUsers(domainId: number, params?: PaginationParams) {
   return useQuery({
     queryKey: ["users", domainId, params],
     queryFn: () => apiClient.getUsers(domainId, params),
     enabled: domainId > 0,
+  });
+}
+
+export function useImportUsers(domainId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (file: File) => apiClient.importUsers(domainId, file),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["users", domainId] });
+    },
   });
 }
 

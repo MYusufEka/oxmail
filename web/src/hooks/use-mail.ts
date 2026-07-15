@@ -28,6 +28,14 @@ export function useFolderMessages(folder: string, userEmail: string, params?: Pa
   });
 }
 
+export function useThreads(userEmail: string, folder: string, params?: PaginationParams) {
+  return useQuery({
+    queryKey: ["threads", folder, userEmail, params],
+    queryFn: () => apiClient.getThreads(folder, userEmail, params),
+    enabled: folder.length > 0 && userEmail.length > 0,
+  });
+}
+
 export function useMessage(userId: number, messageId: number, email?: string) {
   return useQuery({
     queryKey: ["message", userId, messageId, email],
@@ -45,6 +53,14 @@ export function useSendMail() {
       queryClient.invalidateQueries({ queryKey: ["inbox"] });
       queryClient.invalidateQueries({ queryKey: ["mailFolders"] });
     },
+  });
+}
+
+export function useMailQueue() {
+  return useQuery({
+    queryKey: ["mailQueue"],
+    queryFn: () => apiClient.getMailQueue(),
+    refetchInterval: 30_000,
   });
 }
 
