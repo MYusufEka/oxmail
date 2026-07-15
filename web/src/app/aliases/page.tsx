@@ -54,7 +54,11 @@ function groupAliases(aliases: Alias[]): GroupedAlias[] {
   }
 
   return Array.from(groups.entries())
-    .map(([sourceAddress, data]) => ({ sourceAddress, ...data }))
+    .map(([sourceAddress, data]) => ({
+      sourceAddress,
+      ...data,
+      isCatchall: sourceAddress.startsWith("@"),
+    }))
     .sort((a, b) => a.sourceAddress.localeCompare(b.sourceAddress));
 }
 

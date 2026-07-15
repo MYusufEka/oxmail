@@ -27,6 +27,7 @@ export interface GroupedAlias {
   ids: number[];
   active: boolean;
   createdAt: string;
+  isCatchall: boolean;
 }
 
 interface AliasTableProps {
@@ -76,9 +77,20 @@ export function AliasTable({ aliases, isLoading, onDelete, onEdit, onBulkDelete 
       accessorKey: "sourceAddress",
       header: "Source",
       cell: ({ row }) => (
-        <span className="font-medium text-foreground" data-testid="alias-source">
-          {row.original.sourceAddress}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-foreground" data-testid="alias-source">
+            {row.original.sourceAddress}
+          </span>
+          {row.original.isCatchall && (
+            <Badge
+              variant="outline"
+              className="text-xs border-amber-500/50 text-amber-500"
+              data-testid="catchall-badge"
+            >
+              catch-all
+            </Badge>
+          )}
+        </div>
       ),
     },
     {

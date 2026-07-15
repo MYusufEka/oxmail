@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Paperclip, Send, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -28,6 +30,60 @@ interface Attachment {
   size: number;
 }
 
+interface DraftData {
+  to: string[];
+  subject: string;
+  body: string;
+  savedAt: string;
+}
+
+const DRAFT_DEBOUNCE_MS = 2000;
+
+function draftKey(email: string): string {
+  return `draft:${email}`;
+}
+
+export function loadDraft(email: string): DraftData | null {
+  try {
+    const raw = localStorage.getItem(draftKey(email));
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      Array.isArray((parsed as DraftData).to) &&
+      typeof (parsed as DraftData).subject === "string" &&
+      typeof (parsed as DraftData).body === "string" &&
+      typeof (parsed as DraftData).savedAt === "string"
+    ) {
+      return parsed as DraftData;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveDraft(email: string, data: DraftData): void {
+  try {
+    localStorage.setItem(draftKey(email), JSON.stringify(data));
+  } catch {
+    // Storage full or unavailable
+  }
+}
+
+export function clearDraft(email: string): void {
+  try {
+    localStorage.removeItem(draftKey(email));
+  } catch {
+    // Ignore
+  }
+}
+
+export function hasDraftForEmail(email: string): boolean {
+  return loadDraft(email) !== null;
+}
+
 export function ComposeDialog({
   open,
   onOpenChange,
@@ -42,11 +98,14 @@ export function ComposeDialog({
   const [body, setBody] = useState("");
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
   const sendMail = useSendMail();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restoredRef = useRef(false);
 
-  const hasContent = body.trim().length > 0 || subject.trim().length > 0 || to.length > 0;
+  const hasContent =
+    body.trim().length > 0 || subject.trim().length > 0 || to.length > 0;
 
   const resetForm = useCallback(() => {
     setTo([]);
@@ -56,21 +115,65 @@ export function ComposeDialog({
     setBody("");
     setShowCcBcc(false);
     setAttachments([]);
+    restoredRef.current = false;
   }, []);
+
+  // Restore draft on open
+  useEffect(() => {
+    if (!open || !currentUserEmail) return;
+    const existing = loadDraft(currentUserEmail);
+    if (existing && !restoredRef.current) {
+      restoredRef.current = true;
+      setTo(existing.to);
+      setSubject(existing.subject);
+      setBody(existing.body);
+      toast.info("Draft restored", {
+        description: `Last saved ${new Date(existing.savedAt).toLocaleString()}`,
+      });
+    }
+  }, [open, currentUserEmail]);
+
+  // Auto-save with 2s debounce — only after restore check
+  useEffect(() => {
+    if (!open || !currentUserEmail) return;
+    if (debounceRef.current !== null) {
+      clearTimeout(debounceRef.current);
+    }
+    if (!hasContent) return;
+    debounceRef.current = setTimeout(() => {
+      saveDraft(currentUserEmail, {
+        to,
+        subject,
+        body,
+        savedAt: new Date().toISOString(),
+      });
+    }, DRAFT_DEBOUNCE_MS);
+    return () => {
+      if (debounceRef.current !== null) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, [open, currentUserEmail, to, subject, body, hasContent]);
 
   const handleClose = useCallback(() => {
     if (hasContent) {
-      setShowDiscardConfirm(true);
+      setShowCloseConfirm(true);
     } else {
       onOpenChange(false);
     }
   }, [hasContent, onOpenChange]);
 
   const handleDiscard = useCallback(() => {
-    setShowDiscardConfirm(false);
+    setShowCloseConfirm(false);
+    if (currentUserEmail) clearDraft(currentUserEmail);
     resetForm();
     onOpenChange(false);
-  }, [resetForm, onOpenChange]);
+  }, [resetForm, onOpenChange, currentUserEmail]);
+
+  const handleSaveAsDraft = useCallback(() => {
+    setShowCloseConfirm(false);
+    onOpenChange(false);
+  }, [onOpenChange]);
 
   const handleSend = useCallback(() => {
     if (to.length === 0) {
@@ -90,6 +193,7 @@ export function ComposeDialog({
       {
         onSuccess: () => {
           toast.success("Message sent");
+          if (currentUserEmail) clearDraft(currentUserEmail);
           resetForm();
           onOpenChange(false);
         },
@@ -104,12 +208,10 @@ export function ComposeDialog({
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const files = event.target.files;
       if (!files) return;
-
       const newAttachments: Attachment[] = Array.from(files).map((file) => ({
         name: file.name,
         size: file.size,
       }));
-
       setAttachments((prev) => [...prev, ...newAttachments]);
       event.target.value = "";
     },
@@ -140,24 +242,12 @@ export function ComposeDialog({
           </DialogHeader>
 
           <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
-            <RecipientInput
-              label="To"
-              recipients={to}
-              onChange={setTo}
-            />
+            <RecipientInput label="To" recipients={to} onChange={setTo} />
 
             {showCcBcc ? (
               <>
-                <RecipientInput
-                  label="Cc"
-                  recipients={cc}
-                  onChange={setCc}
-                />
-                <RecipientInput
-                  label="Bcc"
-                  recipients={bcc}
-                  onChange={setBcc}
-                />
+                <RecipientInput label="Cc" recipients={cc} onChange={setCc} />
+                <RecipientInput label="Bcc" recipients={bcc} onChange={setBcc} />
               </>
             ) : (
               <button
@@ -180,11 +270,7 @@ export function ComposeDialog({
               />
             </div>
 
-            <RichEditor
-              value={body}
-              onChange={setBody}
-              className="flex-1"
-            />
+            <RichEditor value={body} onChange={setBody} className="flex-1" />
 
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-2">
@@ -250,20 +336,20 @@ export function ComposeDialog({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showDiscardConfirm} onOpenChange={setShowDiscardConfirm}>
+      <Dialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Discard draft?</DialogTitle>
+            <DialogTitle>Save as draft?</DialogTitle>
+            <DialogDescription>
+              Your message has unsaved content. Would you like to save it as a
+              draft?
+            </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Your message has unsaved content. Are you sure you want to discard
-            it?
-          </p>
-          <div className="flex justify-end gap-2 pt-2">
+          <DialogFooter>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowDiscardConfirm(false)}
+              onClick={() => setShowCloseConfirm(false)}
             >
               Keep editing
             </Button>
@@ -271,10 +357,18 @@ export function ComposeDialog({
               variant="destructive"
               size="sm"
               onClick={handleDiscard}
+              data-testid="discard-draft-btn"
             >
               Discard
             </Button>
-          </div>
+            <Button
+              size="sm"
+              onClick={handleSaveAsDraft}
+              data-testid="save-draft-btn"
+            >
+              Save draft
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

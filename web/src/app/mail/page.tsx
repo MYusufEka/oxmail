@@ -13,12 +13,14 @@ import {
   Filter,
   Globe,
   Inbox,
+  Layers,
   Luggage,
   Mail,
   PenSquare,
   Reply,
   ReplyAll,
   Send,
+  Signature,
   Trash2,
   User,
 } from "lucide-react";
@@ -31,6 +33,7 @@ import {
   useDeleteFolder,
   useRenameFolder,
   useMoveMessage,
+  useThreads,
 } from "@/hooks/use-mail";
 import { useDomains } from "@/hooks/use-domains";
 import { useUsers } from "@/hooks/use-users";
@@ -69,6 +72,7 @@ import {
 import { cn } from "@/lib/utils";
 import { MessageList } from "./message-list";
 import { MessagePreview } from "./message-preview";
+import { ThreadList } from "./thread-list";
 import { ComposeDialog } from "./compose-dialog";
 import { SearchBar } from "./search-bar";
 import { SearchResults } from "./search-results";
@@ -152,6 +156,7 @@ function WebmailPageInner() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<MailMessage[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [threadView, setThreadView] = useState(false);
   const isSearching = searchQuery.length > 0;
 
   const { data: foldersData } = useMailFolders(currentUserEmail);
@@ -172,6 +177,14 @@ function WebmailPageInner() {
     currentUserEmail,
     { page: 1, limit: 50 },
   );
+
+  const { data: threadsData, isLoading: threadsLoading } = useThreads(
+    currentUserEmail,
+    selectedFolder,
+    { page: 1, limit: 50 },
+  );
+
+  const threads = threadsData?.threads ?? [];
 
   const { data: messageDetail, isLoading: messageLoading } = useMessage(
     currentUserId,
@@ -532,6 +545,15 @@ function WebmailPageInner() {
             onClear={handleClearSearch}
             isSearching={isSearching}
           />
+          <Button
+            variant={threadView ? "default" : "outline"}
+            size="sm"
+            data-testid="view-toggle-threads"
+            onClick={() => setThreadView((prev) => !prev)}
+          >
+            <Layers className="size-4" />
+            Threads
+          </Button>
           <Button onClick={handleNewMessage} size="sm">
             <PenSquare className="size-4" />
             New Message
@@ -565,6 +587,13 @@ function WebmailPageInner() {
             >
               <BookUser className="size-4 shrink-0" />
               <span className="flex-1 text-left">Contacts</span>
+            </Link>
+            <Link
+              href="/mail/signature"
+              className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+            >
+              <Signature className="size-4 shrink-0" />
+              <span className="flex-1 text-left">Signature</span>
             </Link>
           </div>
 
@@ -739,6 +768,14 @@ function WebmailPageInner() {
               query={searchQuery}
               selectedId={selectedMessageId}
               isLoading={searchLoading}
+              contactsMap={contactsMap}
+              onSelect={handleSelectMessage}
+            />
+          ) : threadView ? (
+            <ThreadList
+              threads={threads}
+              selectedId={selectedMessageId}
+              isLoading={threadsLoading}
               contactsMap={contactsMap}
               onSelect={handleSelectMessage}
             />
