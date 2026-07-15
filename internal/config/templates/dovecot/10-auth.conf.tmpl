@@ -1,0 +1,21 @@
+# Dovecot authentication configuration template
+# Rendered by oxmail-api — do NOT edit directly
+
+# Disable plaintext auth without SSL in dev mode
+disable_plaintext_auth = no
+
+# Auth mechanisms
+auth_mechanisms = plain login
+
+# Password database — file-based (managed by oxmail-api)
+passdb {
+  driver = passwd-file
+  args = scheme=BLF-CRYPT /etc/oxmail/dovecot/passdb
+}
+
+# User database — file-based
+userdb {
+  driver = passwd-file
+  args = /etc/oxmail/dovecot/userdb
+  default_fields = uid=5000 gid=5000 home=/var/mail/vhosts/%d/%n
+}

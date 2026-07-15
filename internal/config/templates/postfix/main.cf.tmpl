@@ -1,0 +1,90 @@
+# Postfix main configuration template
+# Rendered by oxmail-api — do NOT edit directly
+
+# Identity
+myhostname = {{.Hostname}}
+mydomain = {{.Domain}}
+myorigin = $mydomain
+mydestination = localhost
+
+# Virtual mailbox configuration
+virtual_mailbox_domains = /etc/oxmail/postfix/virtual_domains
+virtual_mailbox_maps = texthash:/etc/oxmail/postfix/virtual_mailboxes
+virtual_alias_maps = texthash:/etc/oxmail/postfix/virtual_aliases
+virtual_mailbox_base = /var/mail/vhosts
+virtual_minimum_uid = 5000
+virtual_uid_maps = static:5000
+virtual_gid_maps = static:5000
+
+# Delivery via Dovecot LMTP
+virtual_transport = lmtp:unix:/var/spool/postfix/private/dovecot-lmtp
+
+# Network
+inet_interfaces = all
+inet_protocols = ipv4
+mynetworks = 127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+
+# Restrictions
+smtpd_relay_restrictions =
+    permit_mynetworks,
+    permit_sasl_authenticated,
+    reject_unauth_destination
+
+smtpd_recipient_restrictions =
+    permit_mynetworks,
+    permit_sasl_authenticated,
+    reject_unauth_destination
+
+# SASL authentication (via Dovecot)
+smtpd_sasl_type = dovecot
+smtpd_sasl_path = private/auth
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_security_options = noanonymous
+smtpd_sasl_local_domain = $mydomain
+
+# Rspamd milter
+smtpd_milters = inet:rspamd:11332
+non_smtpd_milters = inet:rspamd:11332
+milter_protocol = 6
+milter_default_action = accept
+
+# Recipient validation — let Dovecot decide (LMTP validates via passdb)
+smtpd_reject_unlisted_recipient = no
+
+# Size limits
+message_size_limit = {{.MessageSizeLimit}}
+mailbox_size_limit = 0
+
+# Logging
+maillog_file = /dev/stdout
+
+{{if .DevMode}}
+# TLS configuration (dev mode — self-signed cert, no requirement)
+smtpd_tls_cert_file = /etc/ssl/postfix/server.crt
+smtpd_tls_key_file = /etc/ssl/postfix/server.key
+smtpd_tls_security_level = may
+smtpd_tls_auth_only = no
+smtpd_tls_loglevel = 1
+smtpd_tls_received_header = yes
+
+smtp_tls_security_level = may
+smtp_tls_loglevel = 1
+{{else}}
+# TLS configuration (production)
+# Certs provided by Let's Encrypt via Traefik shared volume
+smtpd_tls_cert_file = /etc/letsencrypt/acme.json.d/certificates/{{.Domain}}.crt
+smtpd_tls_key_file = /etc/letsencrypt/acme.json.d/certificates/{{.Domain}}.key
+smtpd_tls_security_level = may
+smtpd_tls_auth_only = yes
+smtpd_tls_loglevel = 1
+smtpd_tls_received_header = yes
+smtpd_tls_protocols = >=TLSv1.2
+smtpd_tls_mandatory_protocols = >=TLSv1.2
+
+smtp_tls_security_level = may
+smtp_tls_loglevel = 1
+smtp_tls_protocols = >=TLSv1.2
+{{end}}
+
+# Compatibility
+compatibility_level = 3.6
