@@ -1,30 +1,30 @@
-FROM alpine:3.19
+FROM alpine:3.20
 
 RUN apk add --no-cache \
     dovecot \
     dovecot-lmtpd \
     dovecot-pigeonhole-plugin \
-    && (addgroup -S vmail 2>/dev/null || true) \
+    dovecot-pop3d \
+    dovecot-fts-flatcurve \
+    && (addgroup -g 5000 vmail 2>/dev/null || true) \
     && (adduser -S -G vmail -u 5000 vmail 2>/dev/null || true) \
+    && (addgroup -S postfix 2>/dev/null || true) \
+    && (adduser -S -G postfix -u 100 -D postfix 2>/dev/null || true) \
     && mkdir -p /var/mail/vhosts \
     && chown -R vmail:vmail /var/mail \
     && mkdir -p /run/dovecot \
     && chown dovecot:dovecot /run/dovecot \
+    && mkdir -p /var/spool/postfix/private \
+    && mkdir -p /etc/oxmail/dovecot/conf.d \
     && rm -rf /var/cache/apk/* /tmp/*
 
-# Performance tuning for small team usage
-RUN echo "auth_cache_size = 100" >> /etc/dovecot/dovecot.conf \
-    && echo "auth_cache_ttl = 1 hour" >> /etc/dovecot/dovecot.conf \
-    && echo "mail_max_userip_connections = 10" >> /etc/dovecot/dovecot.conf \
-    && echo "login_max_processes_count = 16" >> /etc/dovecot/dovecot.conf \
-    && echo "default_process_limit = 20" >> /etc/dovecot/dovecot.conf
-
 COPY healthcheck.sh /usr/local/bin/healthcheck.sh
-RUN chmod +x /usr/local/bin/healthcheck.sh
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/healthcheck.sh /usr/local/bin/entrypoint.sh
 
 EXPOSE 143 993 24
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD /usr/local/bin/healthcheck.sh
 
-CMD ["dovecot", "-F"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

@@ -58,6 +58,8 @@ services:
       - oxmail-external
     ports:
       - "${OXMAIL_IMAP_PORT:-1143}:143"
+      - "110:110"
+      - "995:995"
     volumes:
       - mail-data:/var/mail
       - config-data:/etc/oxmail
@@ -115,8 +117,10 @@ services:
       - "${OXMAIL_API_PORT:-8080}:8080"
     volumes:
       - config-data:/etc/oxmail
+      - db-data:/app/data
       - mail-data:/var/mail
       - dkim-keys:/etc/dkim
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -151,7 +155,7 @@ services:
       oxmail-api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -169,6 +173,7 @@ networks:
 volumes:
   mail-data:
   config-data:
+  db-data:
   dkim-keys:
   redis-data:
   postfix-spool:

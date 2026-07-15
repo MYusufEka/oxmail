@@ -21,6 +21,9 @@ RUN echo "enabled = false;" > /etc/rspamd/override.d/fuzzy_check.conf \
     && echo "enabled = false;" > /etc/rspamd/override.d/neural.conf \
     && echo "enabled = false;" > /etc/rspamd/override.d/chartable.conf
 
+# Bind to all interfaces so other containers can connect
+RUN echo 'bind_socket = "0.0.0.0:11333";' > /etc/rspamd/local.d/worker-normal.inc
+
 COPY healthcheck.sh /usr/local/bin/healthcheck.sh
 RUN chmod +x /usr/local/bin/healthcheck.sh
 

@@ -6,6 +6,8 @@ services:
   dovecot:
     ports:
       - "${OXMAIL_IMAP_PORT:-1143}:143"
+      - "${OXMAIL_POP3_PORT:-1100}:110"
+      - "995:995"
 
   rspamd:
     ports:
@@ -15,12 +17,14 @@ services:
     ports:
       - "${OXMAIL_API_PORT:-8080}:8080"
     volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./cmd:/app/cmd
       - ./internal:/app/internal
       - ./configs:/app/configs
     environment:
       - OXMAIL_MODE=dev
       - OXMAIL_DOMAIN=${OXMAIL_DOMAIN:-local.test}
+      - OXMAIL_DB_PATH=/app/data/oxmail.db
 
   web:
     ports:
@@ -31,3 +35,4 @@ services:
     environment:
       - NODE_ENV=development
       - NEXT_PUBLIC_API_URL=http://localhost:${OXMAIL_API_PORT:-8080}
+      - NEXT_PUBLIC_DEV_MAIL_PASSWORD=TestPass123!
