@@ -93,7 +93,7 @@ Go 1.25 workspace at root with 3 modules:
 1. Global middleware: RequestID, RealIP, Recoverer, Timeout(30s), SecurityHeaders(CORS)
 2. Public routes: `GET /health`, `POST /api/auth/login`
 3. Protected group (JWT required unless dev mode):
-   - `POST/GET /api/domains`, `GET/DELETE /api/domains/{name}`
+   - `POST/GET /api/domains`, `GET/DELETE /api/domains/{name}`, `GET /api/domains/{name}/health`
    - `POST/GET /api/domains/{domainID}/users`, `DELETE .../{userID}`
    - `POST/GET /api/domains/{domainID}/aliases`, `DELETE .../{aliasID}`
    - `GET /api/mail/{userID}/inbox`, `GET/PATCH/DELETE .../messages/{msgID}`
@@ -102,7 +102,11 @@ Go 1.25 workspace at root with 3 modules:
    - `GET /api/health`
    - `GET/POST /api/dkim/{domain}`
    - `GET /api/dns/records`, `GET /api/dns/check`
+   - `GET/POST /api/contacts`, bounces, stats, audit routes
+   - `POST /api/sieve/{email}`, autodiscover routes
 4. Dev-only routes (when `OXMAIL_MODE=dev`): test endpoints via devHandler
+
+**Domain routes routing quirk**: `GET /api/domains/{name}` and `GET /api/domains/{name}/health` conflict with `GET /api/domains/{domainID}/users` when both use `r.Route("/api/domains", ...)`. Fix: split into `RegisterRoutes` (collection: `POST/GET /`) and `RegisterNameRoutes` (named: flat `r.Get("/api/domains/{name}", ...)` without nesting). Both called in server.go after each other.
 
 ### Dev mode auth
 JWT middleware checks `os.Getenv("OXMAIL_MODE") == "dev"` — if dev, **all requests pass through without token**. Prod mode requires `Authorization: Bearer <token>`.
@@ -115,8 +119,8 @@ Each resource has a handler struct with `RegisterRoutes(r chi.Router)` method. T
 
 ### Database
 - SQLite with WAL mode (`PRAGMA journal_mode=WAL`)
-- 5 migration files embedded via `//go:embed migrations/*.sql`
-- Tables: `schema_migrations`, `domains`, `users`, `aliases`, `dkim_keys`
+- 9 migration files embedded via `//go:embed migrations/*.sql`
+- Tables: `schema_migrations`, `domains`, `users`, `aliases`, `dkim_keys`, `contacts`, `bounces`, `stats`, `audit_log`
 - Foreign keys: `users.domain_id → domains.id` (ON DELETE RESTRICT), `aliases.domain_id → domains.id` (ON DELETE CASCADE)
 - `database.DB` struct wraps `*sql.DB` with logger
 
@@ -128,7 +132,7 @@ Go API **is the config source of truth**. On domain/user/alias mutations:
 - Then `PostfixManager.ApplyDomainConfig()` / `DovecotManager.ApplyUserConfig()` reloads services
 - Config templates use `text/template` (`.tmpl` files in `configs/`)
 
-**Gotcha**: DKIM keys stored in-memory only (`DKIMService`), not persisted to `dkim_keys` table despite migration `005_dkim.sql` existing. Restart loses all DKIM keys.
+**DKIM keys ARE persisted**: `DKIMService.Generate()` does `INSERT OR REPLACE INTO dkim_keys` (line ~103). Keys survive restart. `loadFromDB()` re-hydrates in-memory cache on startup. ~~Stale claim~~ corrected.
 
 ### Tests
 - Table-driven tests with testify
@@ -166,7 +170,7 @@ Go API **is the config source of truth**. On domain/user/alias mutations:
 ### API client pattern
 `src/lib/api-client.ts` exports `apiClient` object with typed methods. Each returns typed Promise. Uses `NEXT_PUBLIC_API_URL` env var (default `http://localhost:8080`). Custom `ApiError` class with status, code, message.
 
-**No auth headers** in apiClient yet — frontend auth not implemented (tracked as T30). Mail page has hardcoded `CURRENT_USER_ID = 1` / `CURRENT_USER_EMAIL = "alice@local.test"`.
+**No auth headers** in `apiClient` — frontend auth not wired (T30 pending). Some mail sub-pages (`filters`, `vacation`, `signature`) still use `DEFAULT_EMAIL = "alice@local.test"` as fallback. Replace when auth lands.
 
 ### Hook pattern (optimistic updates)
 Each CRUD resource has 3 hooks: `useX()`, `useCreateX()`, `useDeleteX()`. Create/Delete hooks:
