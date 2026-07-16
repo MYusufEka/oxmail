@@ -2,6 +2,7 @@ import type {
   Contact,
   DailyStat,
   Domain,
+  DomainHealthResult,
   MailQueueStatus,
   StatsSummary,
   User,
@@ -110,6 +111,10 @@ export const apiClient = {
 
   deleteDomain(domainId: number): Promise<void> {
     return request(`/api/domains/${domainId}`, { method: "DELETE" });
+  },
+
+  getDomainHealth(name: string): Promise<DomainHealthResult> {
+    return request(`/api/domains/${encodeURIComponent(name)}/health`);
   },
 
   // Users

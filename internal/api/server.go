@@ -156,11 +156,13 @@ func (s *Server) registerRoutes(conn *sql.DB, jwtSecret, adminPassword string) {
 			aliasHandler.RegisterRoutes(r)
 
 			domainsHandler := NewDomainsHandler(domainSvc, "/etc/oxmail/postfix/virtual_domains", postfixMgr)
+			domainsHandler.WithHealthChecker(conn, "/etc/oxmail/dovecot")
 			domainsHandler.RegisterRoutes(r)
 
 			usersHandler := NewUsersHandler(userSvc, dovecotMgr).WithDomainResolver(domainSvc)
 			usersHandler.RegisterRoutes(r)
 			RegisterDomainScopedRoutes(r, usersHandler, aliasHandler)
+			domainsHandler.RegisterNameRoutes(r)
 
 			contactSvc := domain.NewContactService(conn)
 			contactsHandler := NewContactsHandler(contactSvc)

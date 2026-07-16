@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { DomainHealthPopover } from "@/app/domains/domain-health-popover";
 
 interface DomainTableProps {
   domains: Domain[];
@@ -31,6 +32,7 @@ function formatDate(dateString: string): string {
     day: "numeric",
   });
 }
+
 
 function createColumns(onDelete: (domain: Domain) => void): ColumnDef<Domain>[] {
   return [
@@ -56,6 +58,11 @@ function createColumns(onDelete: (domain: Domain) => void): ColumnDef<Domain>[] 
       cell: () => (
         <span className="text-muted-foreground">—</span>
       ),
+    },
+    {
+      id: "health",
+      header: "Health",
+      cell: ({ row }) => <DomainHealthPopover name={row.original.name} />,
     },
     {
       id: "dkim",

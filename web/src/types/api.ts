@@ -52,6 +52,18 @@ export interface ServiceHealth {
   latencyMs?: number;
 }
 
+export interface DomainCheckResult {
+  name: string;
+  status: "pass" | "warn" | "fail";
+  detail: string;
+}
+
+export interface DomainHealthResult {
+  domain: string;
+  status: "healthy" | "degraded" | "unhealthy";
+  checks: DomainCheckResult[];
+}
+
 export interface LogEntry {
   id: number;
   timestamp: string;

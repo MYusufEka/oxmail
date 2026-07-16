@@ -1,5 +1,3 @@
-"use client";
-
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, type PaginationParams } from "@/lib/api-client";
 import type { Domain, CreateDomainRequest, PaginatedResponse } from "@/types/api";
@@ -8,6 +6,15 @@ export function useDomains(params?: PaginationParams) {
   return useQuery({
     queryKey: ["domains", params],
     queryFn: () => apiClient.getDomains(params),
+  });
+}
+
+export function useDomainHealth(name: string) {
+  return useQuery({
+    queryKey: ["domain-health", name],
+    queryFn: () => apiClient.getDomainHealth(name),
+    staleTime: 0,
+    refetchOnWindowFocus: false,
   });
 }
 

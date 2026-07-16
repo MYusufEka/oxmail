@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -23,6 +24,7 @@ type DomainsHandler struct {
 	service        *domain.DomainService
 	generator      *config.PostfixDomainsGenerator
 	postfixManager *mail.PostfixManager
+	healthChecker  *domain.DomainHealthChecker
 	router         *chi.Mux
 }
 
@@ -38,9 +40,10 @@ func NewDomainsHandler(service *domain.DomainService, configPath string, postfix
 	h.router.Route("/api/domains", func(r chi.Router) {
 		r.Post("/", h.handleCreate)
 		r.Get("/", h.handleList)
-		r.Get("/{name}", h.handleGet)
-		r.Delete("/{name}", h.handleDelete)
 	})
+	h.router.Get("/api/domains/{name}", h.handleGet)
+	h.router.Get("/api/domains/{name}/health", h.handleHealth)
+	h.router.Delete("/api/domains/{name}", h.handleDelete)
 
 	return h
 }
@@ -50,14 +53,17 @@ func (h *DomainsHandler) Router() *chi.Mux {
 	return h.router
 }
 
-// RegisterRoutes mounts domain routes onto an existing router.
 func (h *DomainsHandler) RegisterRoutes(r chi.Router) {
 	r.Route("/api/domains", func(r chi.Router) {
 		r.Post("/", h.handleCreate)
 		r.Get("/", h.handleList)
-		r.Get("/{name}", h.handleGet)
-		r.Delete("/{name}", h.handleDelete)
 	})
+}
+
+func (h *DomainsHandler) RegisterNameRoutes(r chi.Router) {
+	r.Get("/api/domains/{name}", h.handleGet)
+	r.Get("/api/domains/{name}/health", h.handleHealth)
+	r.Delete("/api/domains/{name}", h.handleDelete)
 }
 
 func RegisterDomainScopedRoutes(r chi.Router, usersH *UsersHandler, aliasH *AliasHandler) {
@@ -176,6 +182,31 @@ func (h *DomainsHandler) handleServiceError(w http.ResponseWriter, err error) {
 	}
 
 	writeError(w, http.StatusInternalServerError, "internal_error", "unexpected error")
+}
+
+func (h *DomainsHandler) WithHealthChecker(db *sql.DB, dovecotConfigDir string) *DomainsHandler {
+	h.healthChecker = domain.NewDomainHealthChecker(db, dovecotConfigDir)
+	return h
+}
+
+func (h *DomainsHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+
+	if _, err := h.service.Get(r.Context(), name); err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	if h.healthChecker == nil {
+		writeError(w, http.StatusServiceUnavailable, "checker_unavailable", "health checker not configured")
+		return
+	}
+
+	result := h.healthChecker.Check(r.Context(), name)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(result)
 }
 
 func (h *DomainsHandler) regenerateConfig(r *http.Request) {

@@ -9,11 +9,13 @@ import type { PaginatedResponse, Domain } from "@/types/api";
 const mockUseDomains = vi.fn();
 const mockUseCreateDomain = vi.fn();
 const mockUseDeleteDomain = vi.fn();
+const mockUseDomainHealth = vi.fn();
 
 vi.mock("@/hooks/use-domains", () => ({
   useDomains: () => mockUseDomains(),
   useCreateDomain: () => mockUseCreateDomain(),
   useDeleteDomain: () => mockUseDeleteDomain(),
+  useDomainHealth: () => mockUseDomainHealth(),
 }));
 
 vi.mock("sonner", () => ({
@@ -85,6 +87,11 @@ function setupDefaultMocks(overrides?: {
   mockUseDeleteDomain.mockReturnValue({
     mutate: vi.fn(),
     isPending: false,
+  });
+
+  mockUseDomainHealth.mockReturnValue({
+    data: { domain: "example.com", status: "healthy", checks: [] },
+    isLoading: false,
   });
 }
 
@@ -221,6 +228,73 @@ describe("DomainTable", () => {
     await user.click(screen.getByTestId("delete-domain-1"));
 
     expect(onDelete).toHaveBeenCalledWith(mockDomains[0]);
+  });
+
+  it("renders health badge for each domain row", () => {
+    const onDelete = vi.fn();
+    render(<DomainTable domains={mockDomains} onDelete={onDelete} />, {
+      wrapper: createWrapper(),
+    });
+
+    expect(screen.getByTestId("domain-health-badge-example.com")).toBeInTheDocument();
+    expect(screen.getByTestId("domain-health-badge-test.org")).toBeInTheDocument();
+  });
+
+  it("shows loading state when health is fetching", () => {
+    mockUseDomainHealth.mockReturnValue({ data: undefined, isLoading: true });
+
+    const onDelete = vi.fn();
+    render(<DomainTable domains={[mockDomains[0]]} onDelete={onDelete} />, {
+      wrapper: createWrapper(),
+    });
+
+    const badge = screen.getByTestId("domain-health-badge-example.com");
+    expect(badge).toHaveClass("animate-pulse");
+  });
+
+  it("shows green dot for healthy status", () => {
+    mockUseDomainHealth.mockReturnValue({
+      data: { domain: "example.com", status: "healthy", checks: [] },
+      isLoading: false,
+    });
+
+    const onDelete = vi.fn();
+    render(<DomainTable domains={[mockDomains[0]]} onDelete={onDelete} />, {
+      wrapper: createWrapper(),
+    });
+
+    const badge = screen.getByTestId("domain-health-badge-example.com");
+    expect(badge).toHaveClass("bg-green-500");
+  });
+
+  it("shows amber dot for degraded status", () => {
+    mockUseDomainHealth.mockReturnValue({
+      data: { domain: "example.com", status: "degraded", checks: [] },
+      isLoading: false,
+    });
+
+    const onDelete = vi.fn();
+    render(<DomainTable domains={[mockDomains[0]]} onDelete={onDelete} />, {
+      wrapper: createWrapper(),
+    });
+
+    const badge = screen.getByTestId("domain-health-badge-example.com");
+    expect(badge).toHaveClass("bg-amber-500");
+  });
+
+  it("shows red dot for unhealthy status", () => {
+    mockUseDomainHealth.mockReturnValue({
+      data: { domain: "example.com", status: "unhealthy", checks: [] },
+      isLoading: false,
+    });
+
+    const onDelete = vi.fn();
+    render(<DomainTable domains={[mockDomains[0]]} onDelete={onDelete} />, {
+      wrapper: createWrapper(),
+    });
+
+    const badge = screen.getByTestId("domain-health-badge-example.com");
+    expect(badge).toHaveClass("bg-red-500");
   });
 });
 
