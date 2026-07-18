@@ -15,6 +15,7 @@ import (
 type mockCommandExecutor struct {
 	commands [][]string
 	err      error
+	output   string
 }
 
 func (m *mockCommandExecutor) Run(name string, args ...string) error {
@@ -26,7 +27,7 @@ func (m *mockCommandExecutor) Run(name string, args ...string) error {
 func (m *mockCommandExecutor) RunWithOutput(name string, args ...string) (string, error) {
 	cmd := append([]string{name}, args...)
 	m.commands = append(m.commands, cmd)
-	return "", m.err
+	return m.output, m.err
 }
 
 // failingCommandExecutor fails on the Nth call.

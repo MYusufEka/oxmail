@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
+import { AuthProvider } from "@/contexts/auth";
 import { AppShell } from "@/components/layout/app-shell";
 import "./globals.css";
 
@@ -34,7 +35,9 @@ export default function RootLayout({
       <body className="min-h-full bg-background text-foreground">
         <ThemeProvider>
           <QueryProvider>
-            <AppShell>{children}</AppShell>
+            <AuthProvider>
+              <AppShell>{children}</AppShell>
+            </AuthProvider>
           </QueryProvider>
         </ThemeProvider>
       </body>

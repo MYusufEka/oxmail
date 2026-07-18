@@ -28,6 +28,8 @@ import type {
   UpdateAliasRequest,
   SendMailRequest,
   SendMailResponse,
+  LoginRequest,
+  LoginResponse,
   ChangePasswordRequest,
   ChangePasswordResponse,
   ErrorResponse,
@@ -51,13 +53,25 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}${path}`;
+  const isLoginRequest = path === "/api/auth/login";
+
+  const token =
+    typeof window !== "undefined"
+      ? localStorage.getItem("oxmail_token")
+      : null;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options?.headers as Record<string, string>),
+  };
+
+  if (token && !isLoginRequest) {
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   const response = await fetch(url, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {
@@ -183,16 +197,12 @@ export const apiClient = {
   },
 
   // Mail
-  getInbox(userId: number, params?: PaginationParams, email?: string): Promise<InboxResponse> {
-    const base = buildQuery(params);
-    const userEmail = encodeURIComponent(email ?? "alice@local.test");
-    const creds = base ? `&user=${userEmail}&password=TestPass123!` : `?user=${userEmail}&password=TestPass123!`;
-    return request(`/api/mail/${userId}/inbox${base}${creds}`);
+  getInbox(userId: number, params?: PaginationParams, _email?: string): Promise<InboxResponse> {
+    return request(`/api/mail/${userId}/inbox${buildQuery(params)}`);
   },
 
-  getMessage(userId: number, messageId: number, email?: string): Promise<MailMessage> {
-    const userEmail = encodeURIComponent(email ?? "alice@local.test");
-    return request(`/api/mail/${userId}/messages/${messageId}?user=${userEmail}&password=TestPass123!`);
+  getMessage(userId: number, messageId: number, _email?: string): Promise<MailMessage> {
+    return request(`/api/mail/${userId}/messages/${messageId}`);
   },
 
   sendMail(payload: SendMailRequest): Promise<SendMailResponse> {
@@ -202,24 +212,21 @@ export const apiClient = {
     });
   },
 
-  markAsRead(userId: number, messageId: number, email?: string): Promise<void> {
-    const userEmail = encodeURIComponent(email ?? "alice@local.test");
-    return request(`/api/mail/${userId}/messages/${messageId}?user=${userEmail}&password=TestPass123!`, {
+  markAsRead(userId: number, messageId: number, _email?: string): Promise<void> {
+    return request(`/api/mail/${userId}/messages/${messageId}`, {
       method: "PATCH",
       body: JSON.stringify({ read: true }),
     });
   },
 
-  toggleRead(userId: number, messageId: number, email?: string): Promise<void> {
-    const userEmail = encodeURIComponent(email ?? "alice@local.test");
-    return request(`/api/mail/${userId}/messages/${messageId}/toggle-read?user=${userEmail}&password=TestPass123!`, {
+  toggleRead(userId: number, messageId: number, _email?: string): Promise<void> {
+    return request(`/api/mail/${userId}/messages/${messageId}/toggle-read`, {
       method: "PATCH",
     });
   },
 
-  trashMessage(userId: number, messageId: number, email?: string): Promise<void> {
-    const userEmail = encodeURIComponent(email ?? "alice@local.test");
-    return request(`/api/mail/${userId}/messages/${messageId}?user=${userEmail}&password=TestPass123!`, {
+  trashMessage(userId: number, messageId: number, _email?: string): Promise<void> {
+    return request(`/api/mail/${userId}/messages/${messageId}`, {
       method: "DELETE",
     });
   },
@@ -230,24 +237,31 @@ export const apiClient = {
   },
 
   getMailFolders(user: string): Promise<FoldersResponse> {
-    return request(`/api/mail/folders?user=${encodeURIComponent(user)}&password=TestPass123!`);
+    return request(`/api/mail/folders?user=${encodeURIComponent(user)}`);
   },
 
   getFolderMessages(folder: string, user: string, params?: PaginationParams): Promise<InboxResponse> {
     const base = buildQuery(params);
-    const userEmail = encodeURIComponent(user);
-    const creds = base ? `&user=${userEmail}&password=TestPass123!` : `?user=${userEmail}&password=TestPass123!`;
-    return request(`/api/mail/folders/${encodeURIComponent(folder)}/messages${base}${creds}`);
+    const userQuery = `user=${encodeURIComponent(user)}`;
+    const query = base ? `${base}&${userQuery}` : `?${userQuery}`;
+    return request(`/api/mail/folders/${encodeURIComponent(folder)}/messages${query}`);
   },
 
   getThreads(folder: string, user: string, params?: PaginationParams): Promise<ThreadsResponse> {
     const base = buildQuery(params);
-    const userEmail = encodeURIComponent(user);
-    const creds = base ? `&user=${userEmail}&password=TestPass123!` : `?user=${userEmail}&password=TestPass123!`;
-    return request(`/api/mail/folders/${encodeURIComponent(folder)}/threads${base}${creds}`);
+    const userQuery = `user=${encodeURIComponent(user)}`;
+    const query = base ? `${base}&${userQuery}` : `?${userQuery}`;
+    return request(`/api/mail/folders/${encodeURIComponent(folder)}/threads${query}`);
   },
 
   // Auth
+  login(payload: LoginRequest): Promise<LoginResponse> {
+    return request("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
   changePassword(payload: ChangePasswordRequest): Promise<ChangePasswordResponse> {
     return request("/api/auth/change-password", {
       method: "POST",
