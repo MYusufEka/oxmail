@@ -161,7 +161,7 @@ Go API **is the config source of truth**. On domain/user/alias mutations:
 | `/` | Dashboard | KPI cards + ServiceHealthGrid + RecentActivity |
 | `/domains` | DomainsPage | DomainTable, Add/Delete dialogs |
 | `/users` | UsersPage | Domain selector + UserTable |
-| `/aliases` | AliasesPage | Static placeholder (not fully implemented) |
+| `/aliases` | AliasesPage | Full CRUD (Add/Edit/Delete/BulkDelete with TanStack Table) |
 | `/mail` | MailPage | MessageList, MessagePreview, Compose dialog |
 | `/logs` | LogsPage | Log entries + WebSocket stream |
 | `/dkim` | DKIMPage | Domain DKIM cards |
@@ -186,7 +186,7 @@ Notable: `useDnsCheck` has `enabled: false` (manual trigger). `useHealth` polls 
 `useLogStream()` hook connects to `ws://<api>/api/logs/stream`. Auto-reconnects every 3s. Returns `{ entries, connected, clearEntries }`.
 
 ### Aliases page
-`/aliases` is a **static placeholder** — Add Alias button is disabled, no hooks wired. Not fully implemented.
+`/aliases` is **fully implemented** — AddAliasDialog, EditAliasDialog, DeleteAliasDialog, handleBulkDelete, useAliases hook, AliasTable. Full CRUD.
 
 ### Mail rich editor
 `rich-editor.tsx` uses `document.execCommand` (deprecated by browsers). Functional but may break in future browser versions.
