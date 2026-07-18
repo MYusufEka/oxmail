@@ -2,8 +2,12 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 )
 
@@ -11,6 +15,79 @@ func setupTestServer(handler http.HandlerFunc) *httptest.Server {
 	server := httptest.NewServer(handler)
 	apiURL = server.URL
 	return server
+}
+
+func captureOutput(f func()) (string, string) {
+	oldOut := os.Stdout
+	oldErr := os.Stderr
+	rOut, wOut, _ := os.Pipe()
+	rErr, wErr, _ := os.Pipe()
+	os.Stdout = wOut
+	os.Stderr = wErr
+
+	f()
+
+	wOut.Close()
+	wErr.Close()
+
+	out, _ := io.ReadAll(rOut)
+	errOut, _ := io.ReadAll(rErr)
+
+	os.Stdout = oldOut
+	os.Stderr = oldErr
+
+	return string(out), string(errOut)
+}
+
+func executeCommandC(args ...string) (string, string, error) {
+	rootCmd.SetArgs(args)
+	var stdout, stderr string
+	var cmdErr error
+	stdout, stderr = captureOutput(func() {
+		_, cmdErr = rootCmd.ExecuteC()
+	})
+	return stdout, stderr, cmdErr
+}
+
+func assertContains(t *testing.T, s, substr string) {
+	t.Helper()
+	if !strings.Contains(s, substr) {
+		t.Errorf("expected %q to contain %q", s, substr)
+	}
+}
+
+func resetFlags() {
+	jsonOutput = false
+	defaultAPI := os.Getenv("OXMAIL_API_URL")
+	if defaultAPI == "" {
+		defaultAPI = "http://localhost:8080"
+	}
+	apiURL = defaultAPI
+}
+
+func requireCmdErr(t *testing.T, err error, msg string) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("expected command error: " + msg)
+	}
+}
+
+func newTestResponse(w http.ResponseWriter, status int, v interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	fmt.Fprint(w, mustMarshalJSON(v))
+}
+
+func mustMarshalJSON(v interface{}) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
+}
+
+func resetAPIURL() {
+	apiURL = "http://localhost:8080"
 }
 
 func TestDomainListJSON(t *testing.T) {
