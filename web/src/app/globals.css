@@ -209,6 +209,15 @@ main > * {
   animation: slide-in-right 200ms ease-out;
 }
 
+/* Tiptap editor placeholder */
+.ProseMirror.is-editor-empty:first-child::before {
+  color: var(--muted-foreground);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
 /* Reduced motion: respect user preference */
 @media (prefers-reduced-motion: reduce) {
   *,
