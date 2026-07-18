@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { useAuth } from "@/contexts/auth";
+import { redirect } from "next/navigation";
 import { Filter, Plus, Trash2, Save, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -42,8 +44,6 @@ import {
   type FilterOperator,
   type FilterAction,
 } from "@/lib/sieve-utils";
-
-const DEFAULT_EMAIL = "alice@local.test";
 
 interface AddFilterDialogProps {
   folders: string[];
@@ -179,8 +179,11 @@ function AddFilterDialog({ folders, onSave }: AddFilterDialogProps) {
 }
 
 export default function FiltersPage() {
-  const { data: sieveData, isLoading: sieveLoading, isError, refetch } = useSieveScript(DEFAULT_EMAIL);
-  const { data: foldersData } = useMailFolders(DEFAULT_EMAIL);
+  const { user, isLoading: authLoading } = useAuth();
+  const userEmail = user?.email ?? "";
+
+  const { data: sieveData, isLoading: sieveLoading, isError, refetch } = useSieveScript(userEmail);
+  const { data: foldersData } = useMailFolders(userEmail);
   const setSieveMutation = useSetSieveScript();
 
   const [rules, setRules] = useState<FilterRule[]>([]);
@@ -220,12 +223,36 @@ export default function FiltersPage() {
       const filterScript = generateFilterScript(rules);
       const merged = mergeSieveScripts(filterScript, vacationScript);
 
-      await setSieveMutation.mutateAsync({ email: DEFAULT_EMAIL, script: merged });
+      await setSieveMutation.mutateAsync({ email: userEmail, script: merged });
       toast.success("Filter rules saved");
     } catch (err) {
       toast.error("Failed to save", { description: err instanceof Error ? err.message : "Unknown error" });
     }
-  }, [rules, sieveData, setSieveMutation]);
+  }, [rules, sieveData, setSieveMutation, userEmail]);
+
+  if (authLoading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-3">
+          <Filter className="size-5 text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Filters</h2>
+        </div>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex flex-col gap-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!user) {
+    redirect("/login");
+  }
 
   if (sieveLoading) {
     return (

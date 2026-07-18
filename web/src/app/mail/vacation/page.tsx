@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/contexts/auth";
+import { redirect } from "next/navigation";
 import { Luggage, Save, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,14 +24,14 @@ import {
   parseVacationSettings,
 } from "@/lib/sieve-utils";
 
-const DEFAULT_EMAIL = "alice@local.test";
-
 export default function VacationPage() {
+  const { user, isLoading: authLoading } = useAuth();
+  const userEmail = user?.email ?? "";
   const queryClient = useQueryClient();
   const { data: sieveData, isLoading, isError, refetch } = useQuery({
-    queryKey: ["vacation", DEFAULT_EMAIL],
-    queryFn: () => apiClient.getVacationScript(DEFAULT_EMAIL),
-    enabled: DEFAULT_EMAIL.length > 0,
+    queryKey: ["vacation", userEmail],
+    queryFn: () => apiClient.getVacationScript(userEmail),
+    enabled: userEmail.length > 0,
   });
   const setVacationMutation = useMutation({
     mutationFn: ({ email, script }: { email: string; script: string }) =>
@@ -68,7 +70,7 @@ export default function VacationPage() {
     setSaving(true);
     try {
       if (!enabled) {
-        await deleteVacationMutation.mutateAsync(DEFAULT_EMAIL);
+        await deleteVacationMutation.mutateAsync(userEmail);
         toast.success("Vacation auto-reply disabled");
       } else {
         const vacationScript = generateVacationScript({
@@ -77,7 +79,7 @@ export default function VacationPage() {
           body: body.trim(),
           days,
         });
-        await setVacationMutation.mutateAsync({ email: DEFAULT_EMAIL, script: vacationScript });
+        await setVacationMutation.mutateAsync({ email: userEmail, script: vacationScript });
         toast.success("Vacation auto-reply saved");
       }
     } catch (err) {
@@ -85,7 +87,31 @@ export default function VacationPage() {
     } finally {
       setSaving(false);
     }
-  }, [enabled, subject, body, days, setVacationMutation, deleteVacationMutation]);
+  }, [enabled, subject, body, days, setVacationMutation, deleteVacationMutation, userEmail]);
+
+  if (authLoading) {
+    return (
+      <div className="flex h-full flex-col gap-4">
+        <div className="flex items-center gap-3">
+          <Luggage className="size-5 text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Vacation / Auto-reply</h2>
+        </div>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex flex-col gap-4">
+              <Skeleton className="h-8 w-48" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!user) {
+    redirect("/login");
+  }
 
   if (isLoading) {
     return (

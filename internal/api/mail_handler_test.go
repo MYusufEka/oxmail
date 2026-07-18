@@ -398,3 +398,161 @@ func TestMailHandler_GetFolderMessages_DefaultPagination(t *testing.T) {
 	assert.Equal(t, 1, resp.Pagination.Page)
 	assert.Equal(t, 50, resp.Pagination.Limit)
 }
+
+func TestMailHandler_GetThreads_Grouping(t *testing.T) {
+	mock := &mockIMAPBridge{
+		messages: map[uint32]*domain.MailMessage{
+			1: {
+				ID:         1,
+				From:       "alice@local.test",
+				To:         []string{"bob@local.test"},
+				Subject:    "Re: Project update",
+				BodyText:   "Sounds good!",
+				Read:       true,
+				ReceivedAt: time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC),
+				ThreadID:   "thread-abc",
+				MessageID:  "<msg-1@local.test>",
+				InReplyTo:  "<orig@local.test>",
+			},
+			2: {
+				ID:         2,
+				From:       "bob@local.test",
+				To:         []string{"alice@local.test"},
+				Subject:    "Project update",
+				BodyText:   "Here's the update",
+				Read:       false,
+				ReceivedAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
+				ThreadID:   "thread-abc",
+				MessageID:  "<orig@local.test>",
+			},
+			3: {
+				ID:         3,
+				From:       "carol@local.test",
+				To:         []string{"alice@local.test"},
+				Subject:    "Lunch plans",
+				BodyText:   "Today?",
+				Read:       false,
+				ReceivedAt: time.Date(2026, 6, 1, 14, 0, 0, 0, time.UTC),
+				ThreadID:   "thread-xyz",
+				MessageID:  "<lunch@local.test>",
+			},
+		},
+	}
+	handler := NewMailHandler(mock, nil)
+	router := chi.NewRouter()
+	handler.RegisterRoutes(router)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/mail/folders/INBOX/threads?user=alice@local.test&password=secret&page=1&limit=50", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var resp ThreadsResponse
+	err := json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, err)
+
+	// Should group into 2 threads (thread-abc with 2 msgs, thread-xyz with 1)
+	assert.Len(t, resp.Threads, 2)
+
+	// thread-abc should come first (insertion order)
+	thread1 := resp.Threads[0]
+	assert.Equal(t, "thread-abc", thread1.ThreadID)
+	assert.Len(t, thread1.Messages, 2)
+	assert.Equal(t, 2, thread1.ParticipantCount) // alice + bob
+	assert.Equal(t, 1, thread1.UnreadCount)       // msg 2 is unread
+	assert.True(t, thread1.LastDate.Equal(time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)))
+
+	// thread-xyz second
+	thread2 := resp.Threads[1]
+	assert.Equal(t, "thread-xyz", thread2.ThreadID)
+	assert.Len(t, thread2.Messages, 1)
+	assert.Equal(t, 2, thread2.ParticipantCount) // carol (from) + alice (to)
+	assert.Equal(t, 1, thread2.UnreadCount)
+}
+
+func TestMailHandler_GetThreads_MissingUser(t *testing.T) {
+	_, router := setupMailHandler()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/mail/folders/INBOX/threads", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestMailHandler_GetThreads_MissingFolder(t *testing.T) {
+	_, router := setupMailHandler()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/mail/folders//threads?user=alice@local.test&password=secret", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestMailHandler_GetThreads_EmptyMessages(t *testing.T) {
+	mock := &mockIMAPBridge{messages: map[uint32]*domain.MailMessage{}}
+	handler := NewMailHandler(mock, nil)
+	router := chi.NewRouter()
+	handler.RegisterRoutes(router)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/mail/folders/INBOX/threads?user=alice@local.test&password=secret&page=1&limit=50", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var resp ThreadsResponse
+	err := json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, err)
+	assert.Empty(t, resp.Threads)
+}
+
+func TestMailHandler_GetThreads_MessagesWithoutThreadID(t *testing.T) {
+	mock := &mockIMAPBridge{
+		messages: map[uint32]*domain.MailMessage{
+			1: {
+				ID:         1,
+				From:       "alice@local.test",
+				To:         []string{"bob@local.test"},
+				Subject:    "Hello",
+				BodyText:   "Hi Bob!",
+				Read:       false,
+				ReceivedAt: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
+				MessageID:  "<hello@local.test>",
+			},
+			2: {
+				ID:         2,
+				From:       "bob@local.test",
+				To:         []string{"alice@local.test"},
+				Subject:    "Re: Hello",
+				BodyText:   "Hi Alice!",
+				Read:       true,
+				ReceivedAt: time.Date(2026, 6, 1, 11, 0, 0, 0, time.UTC),
+				MessageID:  "<re-hello@local.test>",
+				InReplyTo:  "<hello@local.test>",
+			},
+		},
+	}
+	handler := NewMailHandler(mock, nil)
+	router := chi.NewRouter()
+	handler.RegisterRoutes(router)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/mail/folders/INBOX/threads?user=alice@local.test&password=secret&page=1&limit=50", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var resp ThreadsResponse
+	err := json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, err)
+
+	// Each message has empty ThreadID but has MessageID/InReplyTo.
+	// groupMessagesByThread falls back to MessageID then subject.
+	// msg1: ThreadID="" -> falls to MessageID="<hello@local.test>"
+	// msg2: ThreadID="" -> falls to MessageID="<re-hello@local.test>"
+	// These are different IDs, so they become separate threads.
+	assert.Len(t, resp.Threads, 2)
+}

@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useAuth } from "@/contexts/auth";
+import { redirect } from "next/navigation";
 import { Signature, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,18 +16,19 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
-const DEFAULT_EMAIL = "alice@local.test";
-const SIGNATURE_STORAGE_KEY = `signature:${DEFAULT_EMAIL}`;
-
 interface StoredSignature {
   enabled: boolean;
   content: string;
 }
 
-function loadSignature(): StoredSignature {
+function getSignatureKey(email: string): string {
+  return `signature:${email}`;
+}
+
+function loadSignature(email: string): StoredSignature {
   if (typeof window === "undefined") return { enabled: false, content: "" };
   try {
-    const raw = localStorage.getItem(SIGNATURE_STORAGE_KEY);
+    const raw = localStorage.getItem(getSignatureKey(email));
     if (!raw) return { enabled: false, content: "" };
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     return {
@@ -37,8 +40,8 @@ function loadSignature(): StoredSignature {
   }
 }
 
-function saveSignature(data: StoredSignature) {
-  localStorage.setItem(SIGNATURE_STORAGE_KEY, JSON.stringify(data));
+function saveSignature(email: string, data: StoredSignature) {
+  localStorage.setItem(getSignatureKey(email), JSON.stringify(data));
 }
 
 export function getSignatureForEmail(email: string): StoredSignature | null {
@@ -57,14 +60,26 @@ export function getSignatureForEmail(email: string): StoredSignature | null {
 }
 
 export default function SignaturePage() {
-  const [enabled, setEnabled] = useState(() => loadSignature().enabled);
-  const [content, setContent] = useState(() => loadSignature().content);
+  const { user, isLoading: authLoading } = useAuth();
+  const userEmail = user?.email ?? "";
+  const [enabled, setEnabled] = useState(false);
+  const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    if (userEmail && !initialized) {
+      const sig = loadSignature(userEmail);
+      setEnabled(sig.enabled);
+      setContent(sig.content);
+      setInitialized(true);
+    }
+  }, [userEmail, initialized]);
 
   const handleSave = useCallback(() => {
     setSaving(true);
     try {
-      saveSignature({ enabled, content });
+      saveSignature(userEmail, { enabled, content });
       toast.success("Signature saved");
     } catch (err) {
       toast.error("Failed to save", {
@@ -73,7 +88,30 @@ export default function SignaturePage() {
     } finally {
       setSaving(false);
     }
-  }, [enabled, content]);
+  }, [enabled, content, userEmail]);
+
+  if (authLoading) {
+    return (
+      <div className="flex h-full flex-col gap-4">
+        <div className="flex items-center gap-3">
+          <Signature className="size-5 text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Email Signature</h2>
+        </div>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex flex-col gap-3">
+              <div className="h-8 w-48 animate-pulse rounded bg-muted" />
+              <div className="h-24 w-full animate-pulse rounded bg-muted" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!user) {
+    redirect("/login");
+  }
 
   return (
     <div className="flex h-full flex-col gap-4">

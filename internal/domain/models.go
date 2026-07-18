@@ -181,6 +181,16 @@ type ChangePasswordRequest struct {
 	NewPassword     string `json:"newPassword"`
 }
 
+// MailThread represents a grouped email thread with summary metadata.
+type MailThread struct {
+	ThreadID         string        `json:"threadId"`
+	Subject          string        `json:"subject"`
+	Messages         []MailMessage `json:"messages"`
+	LastDate         time.Time     `json:"lastDate"`
+	ParticipantCount int           `json:"participantCount"`
+	UnreadCount      int           `json:"unreadCount"`
+}
+
 // MailFolder represents an IMAP mailbox with unread count.
 type MailFolder struct {
 	Name       string `json:"name"`

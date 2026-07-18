@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/MYusufEka/oxmail/internal/domain"
@@ -42,6 +43,11 @@ type FoldersResponse struct {
 	Folders []domain.MailFolder `json:"folders"`
 }
 
+// ThreadsResponse is the envelope for grouped thread results.
+type ThreadsResponse struct {
+	Threads []domain.MailThread `json:"threads"`
+}
+
 // RegisterRoutes mounts mail routes onto an existing router.
 func (h *MailHandler) RegisterRoutes(r chi.Router) {
 	r.Route("/api/mail", func(r chi.Router) {
@@ -53,6 +59,7 @@ func (h *MailHandler) RegisterRoutes(r chi.Router) {
 		r.Delete("/folders/{folder}", h.handleDeleteFolder)
 		r.Patch("/folders/{folder}", h.handleRenameFolder)
 		r.Get("/folders/{folder}/messages", h.handleFolderMessages)
+		r.Get("/folders/{folder}/threads", h.handleThreads)
 		r.Post("/messages/{uid}/move", h.handleMoveMessage)
 		r.Get("/messages/{id}", h.handleGetMessage)
 		r.Delete("/messages/{id}", h.handleDeleteMessage)
@@ -281,6 +288,120 @@ func (h *MailHandler) handleFolderMessages(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(resp)
+}
+
+func (h *MailHandler) handleThreads(w http.ResponseWriter, r *http.Request) {
+	user, password, ok := h.extractCredentials(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "missing_user", "user parameter is required")
+		return
+	}
+
+	folder := chi.URLParam(r, "folder")
+	if folder == "" {
+		writeError(w, http.StatusBadRequest, "missing_folder", "folder parameter is required")
+		return
+	}
+
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 50
+	}
+
+	messages, _, err := h.bridge.FetchFolderMessages(user, password, folder, page, limit)
+	if err != nil {
+		h.handleBridgeError(w, err)
+		return
+	}
+
+	if messages == nil {
+		messages = []domain.MailMessage{}
+	}
+
+	threads := groupMessagesByThread(messages)
+
+	resp := ThreadsResponse{Threads: threads}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
+}
+
+// groupMessagesByThread groups a flat message list into threads by ThreadID.
+func groupMessagesByThread(messages []domain.MailMessage) []domain.MailThread {
+	type threadAccumulator struct {
+		threadID   string
+		subject    string
+		msgList    []domain.MailMessage
+		lastDate   time.Time
+		participants map[string]struct{}
+		unreadCount  int
+	}
+
+	groups := make(map[string]*threadAccumulator)
+	// Maintain insertion order for deterministic output.
+	var orderedKeys []string
+
+	for _, msg := range messages {
+		tid := msg.ThreadID
+		if tid == "" {
+			// Fallback: use message ID as thread ID
+			tid = msg.MessageID
+		}
+		if tid == "" {
+			// Last fallback: use subject as thread key
+			tid = msg.Subject
+		}
+		if tid == "" {
+			tid = "orphaned"
+		}
+
+		group, exists := groups[tid]
+		if !exists {
+			group = &threadAccumulator{
+				threadID:     tid,
+				subject:      msg.Subject,
+				participants: make(map[string]struct{}),
+			}
+			groups[tid] = group
+			orderedKeys = append(orderedKeys, tid)
+		}
+
+		group.msgList = append(group.msgList, msg)
+		if msg.ReceivedAt.After(group.lastDate) {
+			group.lastDate = msg.ReceivedAt
+		}
+		if msg.From != "" {
+			group.participants[msg.From] = struct{}{}
+		}
+		for _, to := range msg.To {
+			if to != "" {
+				group.participants[to] = struct{}{}
+			}
+		}
+		if !msg.Read {
+			group.unreadCount++
+		}
+	}
+
+	threads := make([]domain.MailThread, 0, len(orderedKeys))
+	for _, key := range orderedKeys {
+		group := groups[key]
+		threads = append(threads, domain.MailThread{
+			ThreadID:         group.threadID,
+			Subject:          group.subject,
+			Messages:         group.msgList,
+			LastDate:         group.lastDate,
+			ParticipantCount: len(group.participants),
+			UnreadCount:      group.unreadCount,
+		})
+	}
+
+	return threads
 }
 
 func (h *MailHandler) extractCredentials(r *http.Request) (user, password string, ok bool) {
