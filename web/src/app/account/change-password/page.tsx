@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -25,6 +26,7 @@ import {
 } from "@/components/ui/form";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-client";
+import { useAuth } from "@/contexts/auth";
 
 const changePasswordSchema = z
   .object({
@@ -64,6 +66,8 @@ function getPasswordStrength(password: string): {
 }
 
 export default function ChangePasswordPage() {
+  const router = useRouter();
+  const { email, refresh } = useAuth();
   const [isPending, setIsPending] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -78,6 +82,12 @@ export default function ChangePasswordPage() {
     },
   });
 
+  useEffect(() => {
+    if (email) {
+      form.setValue("email", email);
+    }
+  }, [email, form]);
+
   const watchedNewPassword = form.watch("newPassword");
   const strength = getPasswordStrength(watchedNewPassword);
 
@@ -89,8 +99,15 @@ export default function ChangePasswordPage() {
         currentPassword: values.currentPassword,
         newPassword: values.newPassword,
       });
+      await refresh();
       toast.success("Password changed successfully");
-      form.reset();
+      form.reset({
+        email: values.email,
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      router.push("/");
     } catch (error) {
       if (error instanceof ApiError) {
         toast.error(error.message);

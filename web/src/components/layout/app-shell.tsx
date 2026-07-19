@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/auth";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar, NAV_ITEMS } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
@@ -9,12 +11,32 @@ import { CommandPalette } from "@/components/command-palette";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const { user, isLoading, mustChangePassword } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   const handleToggleSidebar = useCallback(() => {
     setSidebarCollapsed((prev) => !prev);
   }, []);
+
+  const isLoginRoute = pathname === "/login";
+  const isChangePasswordRoute = pathname === "/account/change-password";
+
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+
+    if (!user && !isLoginRoute) {
+      router.replace("/login");
+      return;
+    }
+
+    if (user && mustChangePassword && !isChangePasswordRoute) {
+      router.replace("/account/change-password");
+    }
+  }, [isChangePasswordRoute, isLoading, isLoginRoute, mustChangePassword, router, user]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -40,6 +62,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [router]);
+
+  if (isLoginRoute) {
+    return <>{children}</>;
+  }
+
+  if (isLoading || !user) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-background">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <TooltipProvider delayDuration={0}>

@@ -13,16 +13,17 @@ type Domain struct {
 
 // User represents a mailbox user.
 type User struct {
-	ID           int64     `json:"id"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"`
-	DomainID     int64     `json:"domainId"`
-	DisplayName  string    `json:"displayName,omitempty"`
-	Quota        int64     `json:"quota"`
-	StorageUsed  int64     `json:"storageUsed,omitempty"`
-	Active       bool      `json:"active"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	ID                 int64     `json:"id"`
+	Email              string    `json:"email"`
+	PasswordHash       string    `json:"-"`
+	DomainID           int64     `json:"domainId"`
+	DisplayName        string    `json:"displayName,omitempty"`
+	Quota              int64     `json:"quota"`
+	StorageUsed        int64     `json:"storageUsed,omitempty"`
+	Active             bool      `json:"active"`
+	MustChangePassword bool      `json:"mustChangePassword"`
+	CreatedAt          time.Time `json:"createdAt"`
+	UpdatedAt          time.Time `json:"updatedAt"`
 }
 
 // Alias represents an email forwarding alias.
@@ -139,9 +140,10 @@ type CreateUserRequest struct {
 
 // UpdateUserRequest is the payload for partially updating a user.
 type UpdateUserRequest struct {
-	Password    *string `json:"password,omitempty"`
-	DisplayName *string `json:"displayName,omitempty"`
-	Quota       *int64  `json:"quota,omitempty"`
+	Password           *string `json:"password,omitempty"`
+	DisplayName        *string `json:"displayName,omitempty"`
+	Quota              *int64  `json:"quota,omitempty"`
+	MustChangePassword *bool   `json:"mustChangePassword,omitempty"`
 }
 
 // CreateAliasRequest is the payload for creating an alias.
@@ -193,10 +195,10 @@ type MailThread struct {
 
 // MailFolder represents an IMAP mailbox with unread count.
 type MailFolder struct {
-	Name       string `json:"name"`
-	Delimiter  string `json:"delimiter"`
-	Unread     int    `json:"unread"`
-	Total      int    `json:"total"`
+	Name      string `json:"name"`
+	Delimiter string `json:"delimiter"`
+	Unread    int    `json:"unread"`
+	Total     int    `json:"total"`
 }
 
 // Contact represents a saved address book entry.

@@ -12,11 +12,15 @@ export function useDnsRecords() {
   });
 }
 
-export function useDnsCheck() {
+interface UseDnsCheckOptions {
+  enabled?: boolean;
+}
+
+export function useDnsCheck({ enabled = false }: UseDnsCheckOptions = {}) {
   return useQuery({
     queryKey: ["dns", "check"],
     queryFn: () =>
       apiClient.getDnsCheck() as Promise<{ results: DNSCheckResult[] }>,
-    enabled: false,
+    enabled,
   });
 }

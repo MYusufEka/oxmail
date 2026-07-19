@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -50,6 +51,9 @@ func (s *ContactService) Create(ctx context.Context, userEmail string, req Creat
 		userEmail, req.Name, req.Email, req.Phone, now,
 	)
 	if err != nil {
+		if isContactUniqueConstraintError(err) {
+			return nil, ErrContactExists
+		}
 		return nil, fmt.Errorf("insert contact: %w", err)
 	}
 
@@ -145,6 +149,9 @@ func (s *ContactService) Update(ctx context.Context, id int64, req UpdateContact
 	query := fmt.Sprintf("UPDATE contacts SET %s WHERE id = ?", joinComma(sets))
 	_, err = s.conn.ExecContext(ctx, query, args...)
 	if err != nil {
+		if isContactUniqueConstraintError(err) {
+			return nil, ErrContactExists
+		}
 		return nil, fmt.Errorf("update contact: %w", err)
 	}
 
@@ -191,6 +198,12 @@ func (s *ContactService) ResolveName(ctx context.Context, userEmail, contactEmai
 		return ""
 	}
 	return name
+}
+
+func isContactUniqueConstraintError(err error) bool {
+	constraintMessage := err.Error()
+	return strings.Contains(constraintMessage, "idx_contacts_user_email_email") ||
+		strings.Contains(constraintMessage, "UNIQUE constraint failed: contacts.user_email, contacts.email")
 }
 
 // joinComma joins string slices with commas (replacement for strings.Join in dynamic SQL).

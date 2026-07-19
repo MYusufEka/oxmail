@@ -188,54 +188,36 @@ docker compose --profile prod -f docker-compose.yml -f docker-compose.prod.yml p
 
 | Data | Location | Method |
 |------|----------|--------|
-| Mail data | `mail-data` volume | Volume snapshot or `docker cp` |
+| Mail data | `mail-data` volume | Volume snapshot |
 | Configuration | `config-data` volume | Volume snapshot |
 | DKIM keys | `dkim-keys` volume | Volume snapshot (critical!) |
 | TLS certificates | `letsencrypt-data` volume | Volume snapshot |
-| SQLite database | Inside `config-data` | File copy |
+| SQLite database | `db-data` volume (`/app/data`) or local `DB_PATH` | `scripts/backup.sh` SQLite `.backup` |
 | Environment | `.env` file | Secure file copy |
 
-### Backup Script Example
+### SQLite Database Backup
 
 ```bash
-#!/bin/bash
-BACKUP_DIR="/backups/oxmail/$(date +%Y%m%d)"
-mkdir -p "$BACKUP_DIR"
-
-# Stop services briefly for consistent backup
-docker compose --profile prod -f docker-compose.yml -f docker-compose.prod.yml stop
-
-# Backup volumes
-for vol in mail-data config-data dkim-keys letsencrypt-data redis-data; do
-  docker run --rm -v "oxmail_${vol}:/source:ro" -v "${BACKUP_DIR}:/backup" \
-    alpine tar czf "/backup/${vol}.tar.gz" -C /source .
-done
-
-# Backup env
-cp .env "${BACKUP_DIR}/.env"
-
-# Restart
-docker compose --profile prod -f docker-compose.yml -f docker-compose.prod.yml up -d
-
-echo "Backup complete: ${BACKUP_DIR}"
+# Defaults: DB_PATH=oxmail.db BACKUP_DIR=./backups BACKUP_RETAIN_DAYS=7
+DB_PATH=/path/to/oxmail.db BACKUP_DIR=/backups/oxmail ./scripts/backup.sh
 ```
 
-### Restore
+The script uses SQLite CLI `.backup`, verifies `PRAGMA integrity_check`, removes invalid backups, and deletes `oxmail-*.db` files older than `BACKUP_RETAIN_DAYS`.
+
+### SQLite Database Restore
 
 ```bash
-# Stop services
-make prod-down
+# Validate backup first, stop oxmail-api, restore, integrity-check restored DB, restart oxmail-api
+DB_PATH=/path/to/oxmail.db ./scripts/restore.sh /backups/oxmail/oxmail-2026-01-01-120000.db
+```
 
-# Restore volumes
-for vol in mail-data config-data dkim-keys letsencrypt-data redis-data; do
-  docker volume rm "oxmail_${vol}" 2>/dev/null || true
-  docker volume create "oxmail_${vol}"
-  docker run --rm -v "oxmail_${vol}:/target" -v "/backups/oxmail/20260101:/backup:ro" \
-    alpine tar xzf "/backup/${vol}.tar.gz" -C /target
-done
+For production Compose flags:
 
-# Restart
-make prod
+```bash
+COMPOSE_PROFILES="--profile prod" \
+COMPOSE_FILES="-f docker-compose.yml -f docker-compose.prod.yml" \
+DB_PATH=/path/to/oxmail.db \
+./scripts/restore.sh /backups/oxmail/oxmail-2026-01-01-120000.db
 ```
 
 ## Maintenance

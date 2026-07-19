@@ -105,6 +105,33 @@ func TestContactService_Create(t *testing.T) {
 	})
 }
 
+func TestContactService_DuplicatePrevented(t *testing.T) {
+	db := setupContactTestDB(t)
+	seedContactDomainAndUser(t, db, "example.com", "alice@example.com")
+	svc := domain.NewContactService(db.Conn)
+	ctx := context.Background()
+
+	created, err := svc.Create(ctx, "alice@example.com", domain.CreateContactRequest{
+		Name:  "First Bob",
+		Email: "bob@example.com",
+	})
+	require.NoError(t, err)
+
+	duplicate, err := svc.Create(ctx, "alice@example.com", domain.CreateContactRequest{
+		Name:  "Second Bob",
+		Email: "bob@example.com",
+	})
+	require.ErrorIs(t, err, domain.ErrContactExists)
+	assert.Nil(t, duplicate)
+
+	contacts, err := svc.List(ctx, "alice@example.com")
+	require.NoError(t, err)
+	require.Len(t, contacts, 1)
+	assert.Equal(t, created.ID, contacts[0].ID)
+	assert.Equal(t, "First Bob", contacts[0].Name)
+	assert.Equal(t, "bob@example.com", contacts[0].Email)
+}
+
 func TestContactService_Get(t *testing.T) {
 	db := setupContactTestDB(t)
 	seedContactDomainAndUser(t, db, "example.com", "alice@example.com")

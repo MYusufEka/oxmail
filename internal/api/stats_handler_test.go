@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/MYusufEka/oxmail/internal/api"
 	"github.com/MYusufEka/oxmail/internal/database"
@@ -50,6 +51,10 @@ func TestStatsHandler_GetStats(t *testing.T) {
 		require.NoError(t, err)
 		err = svc.IncrementReceived(context.Background())
 		require.NoError(t, err)
+		err = svc.IncrementBounced(context.Background())
+		require.NoError(t, err)
+		err = svc.IncrementSpamCaught(context.Background())
+		require.NoError(t, err)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/stats", nil)
 		rec := httptest.NewRecorder()
@@ -61,8 +66,13 @@ func TestStatsHandler_GetStats(t *testing.T) {
 		err = json.NewDecoder(rec.Body).Decode(&stats)
 		require.NoError(t, err)
 		require.Len(t, stats, 1)
+		statDate, err := time.Parse(time.RFC3339, stats[0].Date)
+		require.NoError(t, err)
+		assert.Equal(t, time.Now().UTC().Format(time.DateOnly), statDate.Format(time.DateOnly))
 		assert.Equal(t, int64(1), stats[0].Sent)
 		assert.Equal(t, int64(1), stats[0].Received)
+		assert.Equal(t, int64(1), stats[0].Bounced)
+		assert.Equal(t, int64(1), stats[0].SpamCaught)
 	})
 
 	t.Run("handles days parameter", func(t *testing.T) {
@@ -90,6 +100,26 @@ func TestStatsHandler_GetStats(t *testing.T) {
 		h.Router().ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+		var resp domain.ErrorResponse
+		err := json.NewDecoder(rec.Body).Decode(&resp)
+		require.NoError(t, err)
+		assert.Equal(t, "invalid_days", resp.Error.Code)
+	})
+
+	t.Run("returns 400 for negative days", func(t *testing.T) {
+		h, _ := setupStatsTest(t)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/stats?days=-1", nil)
+		rec := httptest.NewRecorder()
+		h.Router().ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+		var resp domain.ErrorResponse
+		err := json.NewDecoder(rec.Body).Decode(&resp)
+		require.NoError(t, err)
+		assert.Equal(t, "invalid_days", resp.Error.Code)
 	})
 
 	t.Run("returns 400 for non-numeric days", func(t *testing.T) {
@@ -100,6 +130,11 @@ func TestStatsHandler_GetStats(t *testing.T) {
 		h.Router().ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+		var resp domain.ErrorResponse
+		err := json.NewDecoder(rec.Body).Decode(&resp)
+		require.NoError(t, err)
+		assert.Equal(t, "invalid_days", resp.Error.Code)
 	})
 }
 
@@ -127,6 +162,8 @@ func TestStatsHandler_GetSummary(t *testing.T) {
 		require.NoError(t, err)
 		err = svc.IncrementBounced(context.Background())
 		require.NoError(t, err)
+		err = svc.IncrementSpamCaught(context.Background())
+		require.NoError(t, err)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/stats/summary", nil)
 		rec := httptest.NewRecorder()
@@ -139,6 +176,7 @@ func TestStatsHandler_GetSummary(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, int64(2), summary.TotalSent)
 		assert.Equal(t, int64(1), summary.TotalBounced)
+		assert.Equal(t, int64(1), summary.TotalSpamCaught)
 		assert.Equal(t, int64(0), summary.TotalReceived)
 	})
 }

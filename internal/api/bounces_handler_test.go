@@ -137,6 +137,16 @@ func TestBouncesHandler_List(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
+
+	t.Run("returns 400 for invalid offset", func(t *testing.T) {
+		h, _ := setupBouncesTest(t)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/bounces?offset=abc", nil)
+		rec := httptest.NewRecorder()
+		h.Router().ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
 }
 
 func TestBouncesHandler_Get(t *testing.T) {

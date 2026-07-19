@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/MYusufEka/oxmail/internal/domain"
+	"github.com/go-chi/chi/v5"
 )
 
 // ContactsHandler handles HTTP requests for contact/address book CRUD.
@@ -135,6 +135,10 @@ func (h *ContactsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, domain.ErrContactNotFound) {
 			writeError(w, http.StatusNotFound, "not_found", "contact not found")
+			return
+		}
+		if errors.Is(err, domain.ErrContactExists) {
+			writeError(w, http.StatusConflict, "contact_exists", "contact with this email already exists")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to update contact")

@@ -7,6 +7,8 @@ touch /etc/oxmail/postfix/virtual_domains
 touch /etc/oxmail/postfix/virtual_aliases
 touch /etc/oxmail/postfix/virtual_mailboxes
 
+OXMAIL_DOMAIN=${OXMAIL_DOMAIN:-local.test}
+CERT_COMMON_NAME="mail.$OXMAIL_DOMAIN"
 CERT_FILE="/etc/ssl/postfix/server.crt"
 KEY_FILE="/etc/ssl/postfix/server.key"
 if [ ! -f "$CERT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
@@ -15,7 +17,7 @@ if [ ! -f "$CERT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
     -newkey rsa:2048 \
     -keyout "$KEY_FILE" \
     -out "$CERT_FILE" \
-    -subj "/CN=mail.local.test/O=Oxmail Dev/C=US" \
+    -subj "/CN=$CERT_COMMON_NAME/O=Oxmail Dev/C=US" \
     2>/dev/null
 fi
 
@@ -29,7 +31,7 @@ myorigin = $mydomain
 mydestination = localhost
 inet_interfaces = all
 inet_protocols = ipv4
-mynetworks = 127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128
 virtual_mailbox_domains = /etc/oxmail/postfix/virtual_domains
 virtual_mailbox_maps = texthash:/etc/oxmail/postfix/virtual_mailboxes
 virtual_alias_maps = texthash:/etc/oxmail/postfix/virtual_aliases
@@ -45,6 +47,14 @@ smtpd_sasl_security_options = noanonymous
 smtpd_reject_unlisted_recipient = no
 smtpd_relay_restrictions = permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination
 smtpd_recipient_restrictions = permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination
+smtpd_milters = inet:rspamd:11332
+non_smtpd_milters = inet:rspamd:11332
+milter_protocol = 6
+milter_default_action = tempfail
+smtpd_client_connection_rate_limit = 30
+smtpd_client_message_rate_limit = 30
+smtpd_client_recipient_rate_limit = 100
+anvil_rate_time_unit = 60s
 maillog_file = /dev/stdout
 message_size_limit = 10240000
 compatibility_level = 3.6

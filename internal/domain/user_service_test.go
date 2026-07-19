@@ -12,6 +12,7 @@ import (
 	"github.com/MYusufEka/oxmail/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func setupUserTestDB(t *testing.T) *database.DB {
@@ -250,4 +251,85 @@ func TestUserService_Delete_NotFound(t *testing.T) {
 
 	err := svc.Delete(ctx, 9999)
 	assert.ErrorIs(t, err, domain.ErrUserNotFound)
+}
+
+func TestUserService_GetByID_MustChangePassword(t *testing.T) {
+	svc, db := newTestUserService(t)
+	ctx := context.Background()
+
+	created, err := svc.Create(ctx, domain.CreateUserRequest{
+		Email:    "alice@local.test",
+		Password: "TestPass123!",
+	})
+	require.NoError(t, err)
+
+	_, err = db.Conn.ExecContext(ctx, "UPDATE users SET must_change_password = 1 WHERE id = ?", created.ID)
+	require.NoError(t, err)
+
+	fetched, err := svc.GetByID(ctx, created.ID)
+	require.NoError(t, err)
+	assert.True(t, fetched.MustChangePassword)
+}
+
+func TestUserService_List_MustChangePassword(t *testing.T) {
+	svc, db := newTestUserService(t)
+	ctx := context.Background()
+
+	created, err := svc.Create(ctx, domain.CreateUserRequest{
+		Email:    "alice@local.test",
+		Password: "TestPass123!",
+	})
+	require.NoError(t, err)
+
+	_, err = db.Conn.ExecContext(ctx, "UPDATE users SET must_change_password = 1 WHERE id = ?", created.ID)
+	require.NoError(t, err)
+
+	users, _, err := svc.List(ctx, domain.UserListParams{Page: 1, Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+	assert.True(t, users[0].MustChangePassword)
+}
+
+func TestUserService_GetByEmail_MustChangePassword(t *testing.T) {
+	svc, db := newTestUserService(t)
+	ctx := context.Background()
+
+	created, err := svc.Create(ctx, domain.CreateUserRequest{
+		Email:    "alice@local.test",
+		Password: "TestPass123!",
+	})
+	require.NoError(t, err)
+
+	_, err = db.Conn.ExecContext(ctx, "UPDATE users SET must_change_password = 1 WHERE id = ?", created.ID)
+	require.NoError(t, err)
+
+	fetched, err := svc.GetByEmail(ctx, created.Email)
+	require.NoError(t, err)
+	assert.True(t, fetched.MustChangePassword)
+}
+
+func TestUserService_UpdatePasswordClearsMustChangePassword(t *testing.T) {
+	svc, db := newTestUserService(t)
+	ctx := context.Background()
+
+	created, err := svc.Create(ctx, domain.CreateUserRequest{
+		Email:    "alice@local.test",
+		Password: "OldPass123!",
+	})
+	require.NoError(t, err)
+
+	_, err = db.Conn.ExecContext(ctx, "UPDATE users SET must_change_password = 1 WHERE id = ?", created.ID)
+	require.NoError(t, err)
+
+	newPassword := "NewPass456!"
+	updated, err := svc.Update(ctx, created.ID, domain.UpdateUserRequest{Password: &newPassword})
+	require.NoError(t, err)
+
+	assert.False(t, updated.MustChangePassword)
+	assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(updated.PasswordHash), []byte(newPassword)))
+
+	fetched, err := svc.GetByID(ctx, created.ID)
+	require.NoError(t, err)
+	assert.False(t, fetched.MustChangePassword)
+	assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(fetched.PasswordHash), []byte(newPassword)))
 }

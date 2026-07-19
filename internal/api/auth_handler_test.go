@@ -9,12 +9,15 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
+	apiMiddleware "github.com/MYusufEka/oxmail/internal/api/middleware"
 	"github.com/MYusufEka/oxmail/internal/domain"
 )
 
@@ -44,7 +47,8 @@ func (m *mockUserLookup) Update(_ context.Context, id int64, req domain.UpdateUs
 	for _, u := range m.users {
 		if u.ID == id {
 			if req.Password != nil {
-				u.PasswordHash = *req.Password
+				u.PasswordHash = hashPasswordForTest(*req.Password)
+				u.MustChangePassword = false
 			}
 			return u, nil
 		}
@@ -80,12 +84,44 @@ func setupAuthRouterWithUserLookup(adminPassword, jwtSecret string, lookup UserL
 	return router
 }
 
+func setupProtectedAuthRouter(jwtSecret string) *chi.Mux {
+	router := chi.NewRouter()
+	handler := NewAuthHandler(jwtSecret, "secret123", nil, nil)
+	router.Group(func(r chi.Router) {
+		r.Use(apiMiddleware.JWTAuth(jwtSecret))
+		handler.RegisterProtectedRoutes(r)
+	})
+	return router
+}
+
+func signAuthTokenForTest(t *testing.T, jwtSecret, email, role string) string {
+	t.Helper()
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"email": email,
+		"role":  role,
+		"exp":   jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		"iat":   jwt.NewNumericDate(time.Now()),
+	})
+	signed, err := token.SignedString([]byte(jwtSecret))
+	require.NoError(t, err)
+	return signed
+}
+
+func cookieByName(cookies []*http.Cookie, name string) *http.Cookie {
+	for _, cookie := range cookies {
+		if cookie.Name == name {
+			return cookie
+		}
+	}
+	return nil
+}
+
 func hashPasswordForTest(pw string) string {
 	hash, _ := bcrypt.GenerateFromPassword([]byte(pw), 4)
 	return string(hash)
 }
 
-func TestLoginSuccess(t *testing.T) {
+func TestHandleLoginSetsTokenCookieWithoutExposingJWT(t *testing.T) {
 	router := setupAuthRouter("secret123", "test-jwt-secret")
 	defer os.Unsetenv("OXMAIL_ADMIN_PASSWORD")
 	defer os.Unsetenv("OXMAIL_JWT_SECRET")
@@ -104,14 +140,91 @@ func TestLoginSuccess(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp domain.LoginResponse
+	cookie := cookieByName(rec.Result().Cookies(), "token")
+	require.NotNil(t, cookie)
+	assert.NotEmpty(t, cookie.Value)
+	assert.True(t, cookie.HttpOnly)
+	assert.Equal(t, http.SameSiteStrictMode, cookie.SameSite)
+	assert.Equal(t, "/", cookie.Path)
+	assert.Equal(t, 86400, cookie.MaxAge)
+
+	var resp map[string]string
 	err := json.NewDecoder(rec.Body).Decode(&resp)
 	require.NoError(t, err)
-	assert.NotEmpty(t, resp.Token)
-	assert.False(t, resp.ExpiresAt.IsZero())
+	assert.Equal(t, "ok", resp["status"])
+	assert.Equal(t, "admin", resp["email"])
+	assert.Empty(t, resp["token"])
 }
 
-func TestLoginInvalidPassword(t *testing.T) {
+func TestHandleLogin_MustChangePassword(t *testing.T) {
+	mock := &mockUserLookup{
+		users: map[string]*domain.User{
+			"alice@local.test": {
+				ID:                 1,
+				Email:              "alice@local.test",
+				PasswordHash:       hashPasswordForTest("UserPass123!"),
+				Active:             true,
+				MustChangePassword: true,
+			},
+		},
+	}
+	router := setupAuthRouterWithUserLookup("secret123", "test-jwt-secret", mock)
+
+	payload, _ := json.Marshal(domain.LoginRequest{
+		Email:    "alice@local.test",
+		Password: "UserPass123!",
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, cookieByName(rec.Result().Cookies(), "token"))
+
+	var resp map[string]interface{}
+	err := json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, err)
+	assert.Equal(t, "ok", resp["status"])
+	assert.Equal(t, "alice@local.test", resp["email"])
+	assert.Equal(t, true, resp["mustChangePassword"])
+}
+
+func TestHandleLogin_NoMustChangePassword(t *testing.T) {
+	mock := &mockUserLookup{
+		users: map[string]*domain.User{
+			"alice@local.test": {
+				ID:           1,
+				Email:        "alice@local.test",
+				PasswordHash: hashPasswordForTest("UserPass123!"),
+				Active:       true,
+			},
+		},
+	}
+	router := setupAuthRouterWithUserLookup("secret123", "test-jwt-secret", mock)
+
+	payload, _ := json.Marshal(domain.LoginRequest{
+		Email:    "alice@local.test",
+		Password: "UserPass123!",
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var resp map[string]interface{}
+	err := json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, err)
+	assert.Equal(t, false, resp["mustChangePassword"])
+}
+
+func TestHandleLoginInvalidPasswordSendsNoCookie(t *testing.T) {
 	router := setupAuthRouter("secret123", "test-jwt-secret")
 	defer os.Unsetenv("OXMAIL_ADMIN_PASSWORD")
 	defer os.Unsetenv("OXMAIL_JWT_SECRET")
@@ -129,11 +242,56 @@ func TestLoginInvalidPassword(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Nil(t, cookieByName(rec.Result().Cookies(), "token"))
 
 	var resp domain.ErrorResponse
 	err := json.NewDecoder(rec.Body).Decode(&resp)
 	require.NoError(t, err)
 	assert.Equal(t, "INVALID_CREDENTIALS", resp.Error.Code)
+}
+
+func TestHandleLogoutClearsTokenCookie(t *testing.T) {
+	router := setupAuthRouter("secret123", "test-jwt-secret")
+	defer os.Unsetenv("OXMAIL_ADMIN_PASSWORD")
+	defer os.Unsetenv("OXMAIL_JWT_SECRET")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	cookie := cookieByName(rec.Result().Cookies(), "token")
+	require.NotNil(t, cookie)
+	assert.Empty(t, cookie.Value)
+	assert.True(t, cookie.HttpOnly)
+	assert.Equal(t, http.SameSiteStrictMode, cookie.SameSite)
+	assert.Equal(t, "/", cookie.Path)
+	assert.Equal(t, -1, cookie.MaxAge)
+
+	var resp map[string]string
+	err := json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, err)
+	assert.Equal(t, "ok", resp["status"])
+}
+
+func TestHandleMeReturnsAuthenticatedIdentity(t *testing.T) {
+	jwtSecret := "test-jwt-secret"
+	router := setupProtectedAuthRouter(jwtSecret)
+	token := signAuthTokenForTest(t, jwtSecret, "admin", "admin")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	var resp map[string]string
+	err := json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, err)
+	assert.Equal(t, "admin", resp["email"])
+	assert.Equal(t, "admin", resp["role"])
 }
 
 func TestLoginEmptyBody(t *testing.T) {
@@ -227,6 +385,7 @@ func TestChangePasswordSuccess(t *testing.T) {
 
 	user := mock.users["alice@local.test"]
 	assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte("NewPass456!")))
+	assert.False(t, user.MustChangePassword)
 }
 
 func TestChangePasswordWrongCurrentPassword(t *testing.T) {

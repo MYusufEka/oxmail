@@ -22,7 +22,7 @@ virtual_transport = lmtp:unix:/var/spool/postfix/private/dovecot-lmtp
 # Network
 inet_interfaces = all
 inet_protocols = ipv4
-mynetworks = 127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128
 
 # Restrictions
 smtpd_relay_restrictions =
@@ -46,7 +46,7 @@ smtpd_sasl_local_domain = $mydomain
 smtpd_milters = inet:rspamd:11332
 non_smtpd_milters = inet:rspamd:11332
 milter_protocol = 6
-milter_default_action = accept
+milter_default_action = tempfail
 
 # Recipient validation — let Dovecot decide (LMTP validates via passdb)
 smtpd_reject_unlisted_recipient = no
@@ -57,6 +57,12 @@ mailbox_size_limit = 0
 
 # Logging
 maillog_file = /dev/stdout
+
+# Rate limiting via postfix anvil
+smtpd_client_connection_rate_limit = 30
+smtpd_client_message_rate_limit = 30
+smtpd_client_recipient_rate_limit = 100
+anvil_rate_time_unit = 60s
 
 {{if .DevMode}}
 # TLS configuration (dev mode — self-signed cert, no requirement)

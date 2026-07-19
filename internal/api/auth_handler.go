@@ -14,6 +14,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 
+	apiMiddleware "github.com/MYusufEka/oxmail/internal/api/middleware"
 	"github.com/MYusufEka/oxmail/internal/domain"
 )
 
@@ -38,8 +39,8 @@ type AuthHandler struct {
 }
 
 type loginRateLimiter struct {
-	mu       sync.Mutex
-	attempts map[string][]time.Time
+	mu          sync.Mutex
+	attempts    map[string][]time.Time
 	maxAttempts int
 	window      time.Duration
 }
@@ -90,9 +91,14 @@ func NewAuthHandler(jwtSecret, adminPassword string, userLookup UserLookup, mail
 
 func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 	r.Post("/api/auth/login", h.handleLogin)
+	r.Post("/api/auth/logout", h.handleLogout)
 	if h.userLookup != nil {
 		r.Post("/api/auth/change-password", h.handleChangePassword)
 	}
+}
+
+func (h *AuthHandler) RegisterProtectedRoutes(r chi.Router) {
+	r.Get("/api/auth/me", h.handleMe)
 }
 
 func (h *AuthHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -129,7 +135,8 @@ func (h *AuthHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Email != "admin" || req.Password != h.adminPassword {
+	authenticatedEmail, role, mustChangePassword, ok := h.authenticateLogin(r.Context(), req)
+	if !ok {
 		h.rateLimiter.recordAttempt(ip)
 		writeJSON(w, http.StatusUnauthorized, domain.ErrorResponse{
 			Error: domain.ErrorDetail{
@@ -142,9 +149,11 @@ func (h *AuthHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	expiresAt := time.Now().Add(24 * time.Hour)
 	claims := jwt.MapClaims{
-		"sub": "admin",
-		"exp": jwt.NewNumericDate(expiresAt),
-		"iat": jwt.NewNumericDate(time.Now()),
+		"sub":   authenticatedEmail,
+		"email": authenticatedEmail,
+		"role":  role,
+		"exp":   jwt.NewNumericDate(expiresAt),
+		"iat":   jwt.NewNumericDate(time.Now()),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -159,9 +168,88 @@ func (h *AuthHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, domain.LoginResponse{
-		Token:     signed,
-		ExpiresAt: expiresAt,
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    signed,
+		Path:     "/",
+		MaxAge:   86400,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"status":             "ok",
+		"email":              authenticatedEmail,
+		"role":               role,
+		"mustChangePassword": mustChangePassword,
+	})
+}
+
+func (h *AuthHandler) authenticateLogin(ctx context.Context, req domain.LoginRequest) (string, string, bool, bool) {
+	if req.Email == "admin" && req.Password == h.adminPassword {
+		mustChangePassword := false
+		if h.userLookup != nil {
+			if user, err := h.userLookup.GetByEmail(ctx, "admin"); err == nil {
+				mustChangePassword = user.MustChangePassword
+			}
+		}
+		return "admin", "admin", mustChangePassword, true
+	}
+
+	if h.userLookup == nil {
+		return "", "", false, false
+	}
+
+	user, err := h.userLookup.GetByEmail(ctx, req.Email)
+	if err != nil || !user.Active {
+		return "", "", false, false
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+		return "", "", false, false
+	}
+
+	return user.Email, "user", user.MustChangePassword, true
+}
+
+func (h *AuthHandler) handleLogout(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *AuthHandler) handleMe(w http.ResponseWriter, r *http.Request) {
+	email, ok := apiMiddleware.UserEmailFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, domain.ErrorResponse{
+			Error: domain.ErrorDetail{
+				Code:    "UNAUTHENTICATED",
+				Message: "Authentication required",
+			},
+		})
+		return
+	}
+
+	mustChangePassword := false
+	role := "admin"
+	if h.userLookup != nil {
+		if user, err := h.userLookup.GetByEmail(r.Context(), email); err == nil {
+			mustChangePassword = user.MustChangePassword
+			role = "user"
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"email":              email,
+		"role":               role,
+		"mustChangePassword": mustChangePassword,
 	})
 }
 
@@ -211,17 +299,7 @@ func (h *AuthHandler) handleChangePassword(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), 12)
-	if err != nil {
-		slog.Error("failed to hash new password", "error", err)
-		writeJSON(w, http.StatusInternalServerError, domain.ErrorResponse{
-			Error: domain.ErrorDetail{Code: "INTERNAL_ERROR", Message: "Internal server error"},
-		})
-		return
-	}
-
-	hashStr := string(newHash)
-	if _, err := h.userLookup.Update(r.Context(), user.ID, domain.UpdateUserRequest{Password: &hashStr}); err != nil {
+	if _, err := h.userLookup.Update(r.Context(), user.ID, domain.UpdateUserRequest{Password: &req.NewPassword}); err != nil {
 		slog.Error("failed to update password", "error", err, "email", req.Email)
 		writeJSON(w, http.StatusInternalServerError, domain.ErrorResponse{
 			Error: domain.ErrorDetail{Code: "INTERNAL_ERROR", Message: "Failed to update password"},
@@ -248,5 +326,3 @@ func extractIP(r *http.Request) string {
 	}
 	return host
 }
-
-

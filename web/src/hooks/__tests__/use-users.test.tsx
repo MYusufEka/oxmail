@@ -118,6 +118,7 @@ describe("useCreateUser", () => {
       domainId: 1,
       quota: 512,
       active: true,
+      mustChangePassword: false,
       createdAt: "2024-01-02T00:00:00Z",
       updatedAt: "2024-01-02T00:00:00Z",
     };
@@ -188,6 +189,7 @@ describe("useUpdateUser", () => {
       displayName: "Updated Name",
       quota: 2048,
       active: true,
+      mustChangePassword: false,
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-02T00:00:00Z",
     };

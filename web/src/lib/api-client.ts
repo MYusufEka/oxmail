@@ -30,11 +30,17 @@ import type {
   SendMailResponse,
   LoginRequest,
   LoginResponse,
+  AuthMeResponse,
+  LogoutResponse,
   ChangePasswordRequest,
   ChangePasswordResponse,
   ErrorResponse,
   SieveResponse,
+  SignatureResponse,
+  UpsertSignatureRequest,
   UserImportResult,
+  VacationResponse,
+  VacationSetRequest,
 } from "@/types/api";
 
 const API_BASE_URL =
@@ -53,25 +59,17 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}${path}`;
-  const isLoginRequest = path === "/api/auth/login";
+  const optionHeaders = new Headers(options?.headers);
+  const isFormData = options?.body instanceof FormData;
 
-  const token =
-    typeof window !== "undefined"
-      ? localStorage.getItem("oxmail_token")
-      : null;
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(options?.headers as Record<string, string>),
-  };
-
-  if (token && !isLoginRequest) {
-    headers.Authorization = `Bearer ${token}`;
+  if (!isFormData && !optionHeaders.has("Content-Type")) {
+    optionHeaders.set("Content-Type", "application/json");
   }
 
   const response = await fetch(url, {
     ...options,
-    headers,
+    credentials: "include",
+    headers: optionHeaders,
   });
 
   if (!response.ok) {
@@ -262,6 +260,14 @@ export const apiClient = {
     });
   },
 
+  me(): Promise<AuthMeResponse> {
+    return request("/api/auth/me");
+  },
+
+  logout(): Promise<LogoutResponse> {
+    return request("/api/auth/logout", { method: "POST" });
+  },
+
   changePassword(payload: ChangePasswordRequest): Promise<ChangePasswordResponse> {
     return request("/api/auth/change-password", {
       method: "POST",
@@ -301,15 +307,40 @@ export const apiClient = {
     return request(`/api/mail/vacation/${encodeURIComponent(email)}`);
   },
 
-  setVacationScript(email: string, script: string): Promise<SieveResponse> {
+  setVacation(email: string, payload: VacationSetRequest): Promise<VacationResponse> {
     return request(`/api/mail/vacation/${encodeURIComponent(email)}`, {
       method: "POST",
-      body: JSON.stringify({ script }),
+      body: JSON.stringify(payload),
     });
   },
 
-  deleteVacationScript(email: string): Promise<SieveResponse> {
+  setVacationScript(email: string, script: string): Promise<VacationResponse> {
+    return apiClient.setVacation(email, {
+      subject: "Vacation auto-reply",
+      body: script,
+      enabled: script !== "",
+    });
+  },
+
+  deleteVacationScript(email: string): Promise<VacationResponse> {
     return request(`/api/mail/vacation/${encodeURIComponent(email)}`, {
+      method: "DELETE",
+    });
+  },
+
+  getSignature(email: string): Promise<SignatureResponse> {
+    return request(`/api/mail/signature/${encodeURIComponent(email)}`);
+  },
+
+  upsertSignature(email: string, payload: UpsertSignatureRequest): Promise<SignatureResponse> {
+    return request(`/api/mail/signature/${encodeURIComponent(email)}`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  deleteSignature(email: string): Promise<void> {
+    return request(`/api/mail/signature/${encodeURIComponent(email)}`, {
       method: "DELETE",
     });
   },

@@ -3,6 +3,12 @@
 # Ensures rendered config exists before starting Dovecot
 
 CONF_DIR="/etc/oxmail/dovecot"
+OXMAIL_DOMAIN=${OXMAIL_DOMAIN:-local.test}
+CERT_COMMON_NAME="mail.$OXMAIL_DOMAIN"
+LETSENCRYPT_CERT_FILE="/etc/letsencrypt/acme.json.d/certificates/$OXMAIL_DOMAIN.crt"
+FALLBACK_CERT_DIR="/etc/ssl/dovecot/$CERT_COMMON_NAME"
+FALLBACK_CERT_FILE="$FALLBACK_CERT_DIR/server.crt"
+FALLBACK_KEY_FILE="$FALLBACK_CERT_DIR/server.key"
 
 # Ensure sieve directories exist (always, regardless of config state)
 mkdir -p /var/lib/sieve/scripts /var/lib/sieve/global
@@ -52,17 +58,28 @@ disable_plaintext_auth = no
 CONF
 fi
 
-# If the API-rendered config references SSL certs that don't exist, disable SSL
-# This handles dev mode where Let's Encrypt certs aren't available
 if [ -s "$CONF_DIR/dovecot.conf" ]; then
   if grep -q 'ssl_cert = </etc/letsencrypt' "$CONF_DIR/dovecot.conf" 2>/dev/null; then
-    if [ ! -f /etc/letsencrypt/acme.json.d/certificates/local.test.crt ]; then
-      sed -i 's/^ssl = yes/ssl = no/' "$CONF_DIR/dovecot.conf"
+    if [ ! -f "$LETSENCRYPT_CERT_FILE" ]; then
+      if [ ! -f "$FALLBACK_CERT_FILE" ] || [ ! -f "$FALLBACK_KEY_FILE" ]; then
+        mkdir -p "$FALLBACK_CERT_DIR"
+        openssl req -new -x509 -nodes -days 3650 \
+          -newkey rsa:2048 \
+          -keyout "$FALLBACK_KEY_FILE" \
+          -out "$FALLBACK_CERT_FILE" \
+          -subj "/CN=$CERT_COMMON_NAME/O=Oxmail Dev/C=US" \
+          2>/dev/null
+      fi
+      sed -i 's/^ssl = no/ssl = yes/' "$CONF_DIR/dovecot.conf"
       sed -i '/^ssl_cert =/d' "$CONF_DIR/dovecot.conf"
       sed -i '/^ssl_key =/d' "$CONF_DIR/dovecot.conf"
       sed -i '/^ssl_min_protocol =/d' "$CONF_DIR/dovecot.conf"
       sed -i '/^ssl_prefer_server_ciphers =/d' "$CONF_DIR/dovecot.conf"
-      echo "entrypoint: SSL disabled — Let's Encrypt certs not found"
+      cat >> "$CONF_DIR/dovecot.conf" << CONF
+ssl_cert = <$FALLBACK_CERT_FILE
+ssl_key = <$FALLBACK_KEY_FILE
+CONF
+      echo "entrypoint: SSL fallback cert generated for $CERT_COMMON_NAME"
     fi
   fi
 fi

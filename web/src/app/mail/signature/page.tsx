@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useAuth } from "@/contexts/auth";
 import { redirect } from "next/navigation";
-import { Signature, Save, Loader2 } from "lucide-react";
+import { Signature, Save, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,82 +15,79 @@ import {
 } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-
-interface StoredSignature {
-  enabled: boolean;
-  content: string;
-}
-
-function getSignatureKey(email: string): string {
-  return `signature:${email}`;
-}
-
-function loadSignature(email: string): StoredSignature {
-  if (typeof window === "undefined") return { enabled: false, content: "" };
-  try {
-    const raw = localStorage.getItem(getSignatureKey(email));
-    if (!raw) return { enabled: false, content: "" };
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    return {
-      enabled: Boolean(parsed.enabled),
-      content: typeof parsed.content === "string" ? parsed.content : "",
-    };
-  } catch {
-    return { enabled: false, content: "" };
-  }
-}
-
-function saveSignature(email: string, data: StoredSignature) {
-  localStorage.setItem(getSignatureKey(email), JSON.stringify(data));
-}
-
-export function getSignatureForEmail(email: string): StoredSignature | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(`signature:${email}`);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    if (!parsed.enabled || typeof parsed.content !== "string" || parsed.content.length === 0) {
-      return null;
-    }
-    return { enabled: true, content: parsed.content };
-  } catch {
-    return null;
-  }
-}
+import { Skeleton } from "@/components/ui/skeleton";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api-client";
+import type { SignatureResponse } from "@/types/api";
 
 export default function SignaturePage() {
   const { user, isLoading: authLoading } = useAuth();
   const userEmail = user?.email ?? "";
-  const [enabled, setEnabled] = useState(false);
-  const [content, setContent] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [initialized, setInitialized] = useState(false);
+  const queryClient = useQueryClient();
+  const [enabledOverride, setEnabledOverride] = useState<boolean | null>(null);
+  const [contentOverride, setContentOverride] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (userEmail && !initialized) {
-      const sig = loadSignature(userEmail);
-      setEnabled(sig.enabled);
-      setContent(sig.content);
-      setInitialized(true);
-    }
-  }, [userEmail, initialized]);
+  const {
+    data: signatureData,
+    isLoading: signatureLoading,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ["signature", userEmail],
+    queryFn: () => apiClient.getSignature(userEmail),
+    enabled: userEmail.length > 0,
+  });
 
-  const handleSave = useCallback(() => {
-    setSaving(true);
+  const upsertSignatureMutation = useMutation({
+    mutationFn: ({ email, signature }: { email: string; signature: SignatureResponse }) =>
+      apiClient.upsertSignature(email, {
+        content: signature.content,
+        enabled: signature.enabled,
+      }),
+    onSuccess: (savedSignature) => {
+      queryClient.setQueryData(["signature", savedSignature.email], savedSignature);
+    },
+  });
+
+  const deleteSignatureMutation = useMutation({
+    mutationFn: (email: string) => apiClient.deleteSignature(email),
+    onSuccess: (_deleted, email) => {
+      queryClient.setQueryData(["signature", email], {
+        email,
+        content: "",
+        enabled: false,
+      } satisfies SignatureResponse);
+    },
+  });
+
+  const enabled = enabledOverride ?? signatureData?.enabled ?? false;
+  const content = contentOverride ?? signatureData?.content ?? "";
+
+  const handleSave = useCallback(async () => {
     try {
-      saveSignature(userEmail, { enabled, content });
+      if (!enabled) {
+        await deleteSignatureMutation.mutateAsync(userEmail);
+        setContentOverride("");
+        setEnabledOverride(false);
+        toast.success("Signature disabled");
+        return;
+      }
+
+      await upsertSignatureMutation.mutateAsync({
+        email: userEmail,
+        signature: { email: userEmail, enabled, content },
+      });
       toast.success("Signature saved");
     } catch (err) {
       toast.error("Failed to save", {
         description: err instanceof Error ? err.message : "Unknown error",
       });
-    } finally {
-      setSaving(false);
     }
-  }, [enabled, content, userEmail]);
+  }, [enabled, content, userEmail, upsertSignatureMutation, deleteSignatureMutation]);
 
-  if (authLoading) {
+  const saving = upsertSignatureMutation.isPending || deleteSignatureMutation.isPending;
+
+  if (authLoading || signatureLoading) {
     return (
       <div className="flex h-full flex-col gap-4">
         <div className="flex items-center gap-3">
@@ -100,8 +97,8 @@ export default function SignaturePage() {
         <Card>
           <CardContent className="p-6">
             <div className="flex flex-col gap-3">
-              <div className="h-8 w-48 animate-pulse rounded bg-muted" />
-              <div className="h-24 w-full animate-pulse rounded bg-muted" />
+              <Skeleton className="h-8 w-48" />
+              <Skeleton className="h-24 w-full" />
             </div>
           </CardContent>
         </Card>
@@ -111,6 +108,30 @@ export default function SignaturePage() {
 
   if (!user) {
     redirect("/login");
+  }
+
+  if (isError) {
+    return (
+      <div className="flex h-full flex-col gap-4">
+        <div className="flex items-center gap-3">
+          <Signature className="size-5 text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Email Signature</h2>
+        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center p-12">
+            <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10">
+              <AlertCircle className="size-6 text-destructive" />
+            </div>
+            <h3 className="mt-4 text-base font-medium text-foreground">Failed to load signature</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Something went wrong. Please try again.</p>
+            <Button variant="outline" className="mt-6" onClick={() => refetch()}>
+              <RefreshCw className="size-4" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
@@ -133,7 +154,7 @@ export default function SignaturePage() {
               <Switch
                 id="signature-enabled"
                 checked={enabled}
-                onCheckedChange={setEnabled}
+                onCheckedChange={setEnabledOverride}
                 data-testid="signature-toggle"
                 aria-label="Toggle email signature"
               />
@@ -151,7 +172,7 @@ export default function SignaturePage() {
               </label>
               <textarea
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={(event) => setContentOverride(event.target.value)}
                 placeholder={"-- \nJohn Doe\nEngineering Lead\nAcme Inc."}
                 disabled={!enabled}
                 rows={4}

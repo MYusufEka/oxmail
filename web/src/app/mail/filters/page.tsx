@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/auth";
 import { redirect } from "next/navigation";
 import { Filter, Plus, Trash2, Save, Loader2, AlertCircle, RefreshCw } from "lucide-react";
@@ -23,13 +23,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSieveScript, useSetSieveScript } from "@/hooks/use-sieve";
 import { useMailFolders } from "@/hooks/use-mail";
@@ -186,8 +180,12 @@ export default function FiltersPage() {
   const { data: foldersData } = useMailFolders(userEmail);
   const setSieveMutation = useSetSieveScript();
 
-  const [rules, setRules] = useState<FilterRule[]>([]);
-  const [initialized, setInitialized] = useState(false);
+  const parsedRules = useMemo(
+    () => parseFilterRules(sieveData?.script ?? ""),
+    [sieveData?.script],
+  );
+  const [rulesDraft, setRulesDraft] = useState<FilterRule[] | null>(null);
+  const rules = rulesDraft ?? parsedRules;
 
   const folders = useMemo(() => {
     const apiFolders = foldersData?.folders ?? [];
@@ -198,22 +196,15 @@ export default function FiltersPage() {
     return [...system, ...custom];
   }, [foldersData]);
 
-  useEffect(() => {
-    if (sieveData && !initialized) {
-      const script = sieveData.script ?? "";
-      const parsed = parseFilterRules(script);
-      setRules(parsed);
-      setInitialized(true);
-    }
-  }, [sieveData, initialized]);
-
   const handleAddRule = useCallback((rule: FilterRule) => {
-    setRules((prev) => [...prev, rule]);
-  }, []);
+    setRulesDraft((previousRules) => [...(previousRules ?? parsedRules), rule]);
+  }, [parsedRules]);
 
   const handleDeleteRule = useCallback((ruleId: string) => {
-    setRules((prev) => prev.filter((r) => r.id !== ruleId));
-  }, []);
+    setRulesDraft((previousRules) =>
+      (previousRules ?? parsedRules).filter((rule) => rule.id !== ruleId),
+    );
+  }, [parsedRules]);
 
   const handleSave = useCallback(async () => {
     try {

@@ -9,93 +9,112 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import { apiClient } from "@/lib/api-client";
-
-const TOKEN_KEY = "oxmail_token";
-const EMAIL_KEY = "oxmail_email";
+import { apiClient, ApiError } from "@/lib/api-client";
 
 interface AuthUser {
   email: string;
+  role?: string;
+  mustChangePassword: boolean;
 }
 
 interface AuthContextValue {
   user: AuthUser | null;
-  token: string | null;
+  email: string | null;
+  isAuthenticated: boolean;
   isLoading: boolean;
+  mustChangePassword: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
-  try {
-    const base64 = token.split(".")[1];
-    const json = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
-    return JSON.parse(json) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-function readStoredAuth(): { token: string; email: string } | null {
-  if (typeof window === "undefined") return null;
-  const token = localStorage.getItem(TOKEN_KEY);
-  const email = localStorage.getItem(EMAIL_KEY);
-  if (!token || !email) return null;
-  return { token, email };
-}
-
-function persistAuth(token: string, email: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(EMAIL_KEY, email);
-}
-
-function clearAuth(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(EMAIL_KEY);
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const stored = readStoredAuth();
-    if (stored) {
-      setUser({ email: stored.email });
-      setToken(stored.token);
+  const refresh = useCallback(async () => {
+    try {
+      const session = await apiClient.me();
+      setUser({
+        email: session.email,
+        role: session.role,
+        mustChangePassword: session.mustChangePassword,
+      });
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        setUser(null);
+        return;
+      }
+      setUser(null);
+      throw error;
     }
-    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSession() {
+      try {
+        const session = await apiClient.me();
+        if (active) {
+          setUser({
+            email: session.email,
+            role: session.role,
+            mustChangePassword: session.mustChangePassword,
+          });
+        }
+      } catch {
+        if (active) {
+          setUser(null);
+        }
+      } finally {
+        if (active) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadSession();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const login = useCallback(
     async (email: string, password: string) => {
       const response = await apiClient.login({ email, password });
-      const payload = decodeJwtPayload(response.token);
-      const sub =
-        typeof payload?.sub === "string" ? payload.sub : email;
-
-      persistAuth(response.token, sub);
-      setToken(response.token);
-      setUser({ email: sub });
-      router.push("/");
+      setUser({
+        email: response.email,
+        role: response.role,
+        mustChangePassword: response.mustChangePassword,
+      });
+      router.push(response.mustChangePassword ? "/account/change-password" : "/");
     },
     [router],
   );
 
-  const logout = useCallback(() => {
-    clearAuth();
-    setToken(null);
+  const logout = useCallback(async () => {
+    await apiClient.logout();
     setUser(null);
     router.push("/login");
   }, [router]);
 
   const value = useMemo(
-    () => ({ user, token, isLoading, login, logout }),
-    [user, token, isLoading, login, logout],
+    () => ({
+      user,
+      email: user?.email ?? null,
+      isAuthenticated: Boolean(user),
+      isLoading,
+      mustChangePassword: user?.mustChangePassword ?? false,
+      login,
+      logout,
+      refresh,
+    }),
+    [user, isLoading, login, logout, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

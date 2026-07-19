@@ -4,5 +4,5 @@
 
 bind_socket = "0.0.0.0:11334";
 count = 1;
-secure_ip = "0.0.0.0/0";
+secure_ip = "127.0.0.1";
 static_dir = "${WWWDIR}";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts/auth";
 import { redirect } from "next/navigation";
 import { Luggage, Save, Loader2, AlertCircle, RefreshCw } from "lucide-react";
@@ -19,10 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
-import {
-  generateVacationScript,
-  parseVacationSettings,
-} from "@/lib/sieve-utils";
+import { parseVacationSettings } from "@/lib/sieve-utils";
 
 export default function VacationPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -34,8 +31,13 @@ export default function VacationPage() {
     enabled: userEmail.length > 0,
   });
   const setVacationMutation = useMutation({
-    mutationFn: ({ email, script }: { email: string; script: string }) =>
-      apiClient.setVacationScript(email, script),
+    mutationFn: ({
+      email,
+      settings,
+    }: {
+      email: string;
+      settings: { subject: string; body: string; enabled: boolean };
+    }) => apiClient.setVacation(email, settings),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["vacation", variables.email] });
     },
@@ -47,24 +49,20 @@ export default function VacationPage() {
     },
   });
 
-  const [enabled, setEnabled] = useState(false);
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
-  const [days, setDays] = useState(7);
-  const [initialized, setInitialized] = useState(false);
+  const parsedSettings = useMemo(
+    () => parseVacationSettings(sieveData?.script ?? ""),
+    [sieveData?.script],
+  );
+  const [enabledDraft, setEnabledDraft] = useState<boolean | null>(null);
+  const [subjectDraft, setSubjectDraft] = useState<string | null>(null);
+  const [bodyDraft, setBodyDraft] = useState<string | null>(null);
+  const [daysDraft, setDaysDraft] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (sieveData && !initialized) {
-      const script = sieveData.script ?? "";
-      const settings = parseVacationSettings(script);
-      setEnabled(settings.enabled);
-      setSubject(settings.subject);
-      setBody(settings.body);
-      setDays(settings.days);
-      setInitialized(true);
-    }
-  }, [sieveData, initialized]);
+  const enabled = enabledDraft ?? parsedSettings.enabled;
+  const subject = subjectDraft ?? parsedSettings.subject;
+  const body = bodyDraft ?? parsedSettings.body;
+  const days = daysDraft ?? parsedSettings.days;
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -73,13 +71,14 @@ export default function VacationPage() {
         await deleteVacationMutation.mutateAsync(userEmail);
         toast.success("Vacation auto-reply disabled");
       } else {
-        const vacationScript = generateVacationScript({
-          enabled: true,
-          subject: subject.trim(),
-          body: body.trim(),
-          days,
+        await setVacationMutation.mutateAsync({
+          email: userEmail,
+          settings: {
+            subject: subject.trim(),
+            body: body.trim(),
+            enabled: true,
+          },
         });
-        await setVacationMutation.mutateAsync({ email: userEmail, script: vacationScript });
         toast.success("Vacation auto-reply saved");
       }
     } catch (err) {
@@ -87,7 +86,7 @@ export default function VacationPage() {
     } finally {
       setSaving(false);
     }
-  }, [enabled, subject, body, days, setVacationMutation, deleteVacationMutation, userEmail]);
+  }, [enabled, subject, body, setVacationMutation, deleteVacationMutation, userEmail]);
 
   if (authLoading) {
     return (
@@ -177,7 +176,7 @@ export default function VacationPage() {
               <Switch
                 id="vacation-enabled"
                 checked={enabled}
-                onCheckedChange={setEnabled}
+                onCheckedChange={setEnabledDraft}
                 aria-label="Toggle vacation auto-reply"
               />
               <Label htmlFor="vacation-enabled" className="text-sm">
@@ -194,7 +193,7 @@ export default function VacationPage() {
               </label>
               <Input
                 value={subject}
-                onChange={(e) => setSubject(e.target.value)}
+                onChange={(e) => setSubjectDraft(e.target.value)}
                 placeholder="e.g. Out of office"
                 disabled={!enabled}
                 data-testid="vacation-subject"
@@ -207,7 +206,7 @@ export default function VacationPage() {
               </label>
               <textarea
                 value={body}
-                onChange={(e) => setBody(e.target.value)}
+                onChange={(e) => setBodyDraft(e.target.value)}
                 placeholder="I'm currently away from my desk and will respond when I return."
                 disabled={!enabled}
                 rows={4}
@@ -225,7 +224,7 @@ export default function VacationPage() {
                 min={1}
                 max={90}
                 value={days}
-                onChange={(e) => setDays(Math.max(1, Math.min(90, Number(e.target.value) || 1)))}
+                onChange={(e) => setDaysDraft(Math.max(1, Math.min(90, Number(e.target.value) || 1)))}
                 disabled={!enabled}
                 className="w-28"
                 data-testid="vacation-days"

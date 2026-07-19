@@ -21,15 +21,18 @@ RUN echo "enabled = false;" > /etc/rspamd/override.d/fuzzy_check.conf \
     && echo "enabled = false;" > /etc/rspamd/override.d/neural.conf \
     && echo "enabled = false;" > /etc/rspamd/override.d/chartable.conf
 
-# Bind to all interfaces so other containers can connect
 RUN echo 'bind_socket = "0.0.0.0:11333";' > /etc/rspamd/local.d/worker-normal.inc
 
-COPY healthcheck.sh /usr/local/bin/healthcheck.sh
-RUN chmod +x /usr/local/bin/healthcheck.sh
+COPY configs/rspamd/local.d/worker-controller.inc /etc/rspamd/local.d/worker-controller.inc
+COPY configs/rspamd/local.d/dkim_signing.conf /etc/rspamd/local.d/dkim_signing.conf
+COPY docker/rspamd/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY docker/rspamd/healthcheck.sh /usr/local/bin/healthcheck.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh
 
 EXPOSE 11333 11334
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD /usr/local/bin/healthcheck.sh
 
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["rspamd", "-f", "-u", "rspamd", "-g", "rspamd"]

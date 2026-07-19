@@ -35,7 +35,7 @@ const mockDomains: PaginatedResponse<Domain> = {
 
 const mockUsers: PaginatedResponse<User> = {
   data: [
-    { id: 1, email: "admin@example.com", domainId: 1, quota: 1024, active: true, createdAt: "2024-01-01T00:00:00Z", updatedAt: "2024-01-01T00:00:00Z" },
+    { id: 1, email: "admin@example.com", domainId: 1, quota: 1024, active: true, mustChangePassword: false, createdAt: "2024-01-01T00:00:00Z", updatedAt: "2024-01-01T00:00:00Z" },
   ],
   pagination: { page: 1, limit: 20, total: 1 },
 };
@@ -174,7 +174,7 @@ describe("useUsers", () => {
 
 describe("useCreateUser", () => {
   it("creates a user", async () => {
-    const newUser: User = { id: 2, email: "new@example.com", domainId: 1, quota: 512, active: true, createdAt: "2024-01-02T00:00:00Z", updatedAt: "2024-01-02T00:00:00Z" };
+    const newUser: User = { id: 2, email: "new@example.com", domainId: 1, quota: 512, active: true, mustChangePassword: false, createdAt: "2024-01-02T00:00:00Z", updatedAt: "2024-01-02T00:00:00Z" };
     mockFetchSuccess(newUser);
 
     const { result } = renderHook(() => useCreateUser(1), { wrapper: createWrapper() });

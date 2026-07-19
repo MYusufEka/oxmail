@@ -46,6 +46,7 @@ export function useCreateUser(domainId: number) {
             displayName: newUser.displayName,
             quota: newUser.quota ?? 0,
             active: true,
+            mustChangePassword: false,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };

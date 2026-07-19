@@ -14,6 +14,7 @@ export interface User {
   quota: number;
   storageUsed?: number;
   active: boolean;
+  mustChangePassword: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -163,8 +164,20 @@ export interface ChangePasswordResponse {
 }
 
 export interface LoginResponse {
-  token: string;
-  expiresAt: string;
+  status: string;
+  email: string;
+  role?: string;
+  mustChangePassword: boolean;
+}
+
+export interface AuthMeResponse {
+  email: string;
+  role?: string;
+  mustChangePassword: boolean;
+}
+
+export interface LogoutResponse {
+  status: string;
 }
 
 export interface CreateDomainRequest {
@@ -252,6 +265,31 @@ export interface SieveResponse {
 
 export interface SieveSetRequest {
   script: string;
+}
+
+export interface VacationSetRequest {
+  subject: string;
+  body: string;
+  enabled: boolean;
+}
+
+export interface VacationResponse {
+  email: string;
+  subject?: string;
+  body?: string;
+  enabled: boolean;
+  status?: string;
+}
+
+export interface SignatureResponse {
+  email: string;
+  content: string;
+  enabled: boolean;
+}
+
+export interface UpsertSignatureRequest {
+  content: string;
+  enabled: boolean;
 }
 
 export interface DailyStat {

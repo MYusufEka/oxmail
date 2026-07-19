@@ -1,10 +1,28 @@
-import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ReactNode } from "react";
 
+const signatureApiMocks = vi.hoisted(() => ({
+  getSignature: vi.fn(),
+  upsertSignature: vi.fn(),
+  deleteSignature: vi.fn(),
+}));
+
 vi.stubGlobal("fetch", vi.fn());
+
+vi.mock("@/contexts/auth", () => ({
+  useAuth: () => ({
+    user: { email: "alice@local.test" },
+    email: "alice@local.test",
+    isAuthenticated: true,
+    isLoading: false,
+    login: vi.fn(),
+    logout: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
 
 vi.mock("@/hooks/use-mail", () => ({
   useMailFolders: () => ({ data: { folders: [] }, isLoading: false }),
@@ -37,6 +55,9 @@ vi.mock("@/hooks/use-contacts", () => ({
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: {
+    getSignature: signatureApiMocks.getSignature,
+    upsertSignature: signatureApiMocks.upsertSignature,
+    deleteSignature: signatureApiMocks.deleteSignature,
     markAsRead: vi.fn().mockResolvedValue(undefined),
     toggleRead: vi.fn().mockResolvedValue(undefined),
     trashMessage: vi.fn().mockResolvedValue(undefined),
@@ -44,12 +65,12 @@ vi.mock("@/lib/api-client", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
+  redirect: vi.fn(),
   useSearchParams: () => ({ get: () => null }),
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
 }));
 
-import SignaturePage, { getSignatureForEmail } from "@/app/mail/signature/page";
-import { ComposeDialog } from "@/app/mail/compose-dialog";
+import SignaturePage from "@/app/mail/signature/page";
 import WebmailPage from "@/app/mail/page";
 
 function createWrapper() {
@@ -67,137 +88,130 @@ function createWrapper() {
   };
 }
 
+function renderSignaturePage() {
+  const Wrapper = createWrapper();
+  return render(
+    <Wrapper>
+      <SignaturePage />
+    </Wrapper>,
+  );
+}
+
 beforeEach(() => {
-  localStorage.clear();
+  signatureApiMocks.getSignature.mockResolvedValue({
+    email: "alice@local.test",
+    content: "",
+    enabled: false,
+  });
+  signatureApiMocks.upsertSignature.mockResolvedValue({
+    email: "alice@local.test",
+    content: "--\nAlice",
+    enabled: true,
+  });
+  signatureApiMocks.deleteSignature.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
-  vi.restoreAllMocks();
+  vi.clearAllMocks();
   cleanup();
-  localStorage.clear();
 });
 
 describe("SignaturePage", () => {
-  it("renders page header", () => {
-    render(<SignaturePage />);
+  it("renders page header after API load", async () => {
+    renderSignaturePage();
+
+    expect(await screen.findByText("Signature settings")).toBeInTheDocument();
     expect(screen.getByText("Email Signature")).toBeInTheDocument();
-    expect(screen.getByText("Signature settings")).toBeInTheDocument();
+    expect(signatureApiMocks.getSignature).toHaveBeenCalledWith("alice@local.test");
   });
 
-  it("renders toggle disabled by default", () => {
-    render(<SignaturePage />);
-    const toggle = screen.getByTestId("signature-toggle");
+  it("renders toggle disabled from API response", async () => {
+    renderSignaturePage();
+
+    const toggle = await screen.findByTestId("signature-toggle");
     expect(toggle).toBeInTheDocument();
     expect(screen.getByText("Disabled")).toBeInTheDocument();
   });
 
   it("toggles enabled state", async () => {
     const user = userEvent.setup();
-    render(<SignaturePage />);
+    renderSignaturePage();
 
-    const toggle = screen.getByTestId("signature-toggle");
+    const toggle = await screen.findByTestId("signature-toggle");
     await user.click(toggle);
 
     expect(screen.getByText("Enabled")).toBeInTheDocument();
   });
 
-  it("disables textarea when toggle off", () => {
-    render(<SignaturePage />);
-    const textarea = screen.getByTestId("signature-textarea");
+  it("disables textarea when toggle off", async () => {
+    renderSignaturePage();
+
+    const textarea = await screen.findByTestId("signature-textarea");
     expect(textarea).toBeDisabled();
   });
 
   it("enables textarea when toggle on", async () => {
     const user = userEvent.setup();
-    render(<SignaturePage />);
+    renderSignaturePage();
 
-    await user.click(screen.getByTestId("signature-toggle"));
+    await user.click(await screen.findByTestId("signature-toggle"));
 
     const textarea = screen.getByTestId("signature-textarea");
     expect(textarea).not.toBeDisabled();
   });
 
-  it("saves to localStorage on Save click", async () => {
+  it("saves signature through API on Save click", async () => {
     const user = userEvent.setup();
-    render(<SignaturePage />);
+    renderSignaturePage();
 
-    await user.click(screen.getByTestId("signature-toggle"));
+    await user.click(await screen.findByTestId("signature-toggle"));
     const textarea = screen.getByTestId("signature-textarea");
     await user.clear(textarea);
     await user.type(textarea, "--\nAlice");
 
     await user.click(screen.getByTestId("signature-save-btn"));
 
-    const stored = JSON.parse(localStorage.getItem("signature:alice@local.test") ?? "{}");
-    expect(stored.enabled).toBe(true);
-    expect(stored.content).toBe("--\nAlice");
+    await waitFor(() => {
+      expect(signatureApiMocks.upsertSignature).toHaveBeenCalledWith("alice@local.test", {
+        enabled: true,
+        content: "--\nAlice",
+      });
+    });
   });
 
-  it("renders persisted state from localStorage", () => {
-    localStorage.setItem(
-      "signature:alice@local.test",
-      JSON.stringify({ enabled: true, content: "--\nPersisted" }),
-    );
-    render(<SignaturePage />);
-    expect(screen.getByText("Enabled")).toBeInTheDocument();
+  it("renders persisted state from API", async () => {
+    signatureApiMocks.getSignature.mockResolvedValue({
+      email: "alice@local.test",
+      content: "--\nPersisted",
+      enabled: true,
+    });
+
+    renderSignaturePage();
+
+    expect(await screen.findByText("Enabled")).toBeInTheDocument();
     expect(screen.getByTestId("signature-textarea")).toHaveValue("--\nPersisted");
   });
 
-  it("renders save button with data-testid", () => {
-    render(<SignaturePage />);
-    expect(screen.getByTestId("signature-save-btn")).toBeInTheDocument();
-  });
-});
+  it("deletes signature through API when saved disabled", async () => {
+    signatureApiMocks.getSignature.mockResolvedValue({
+      email: "alice@local.test",
+      content: "--\nPersisted",
+      enabled: true,
+    });
+    const user = userEvent.setup();
+    renderSignaturePage();
 
-describe("getSignatureForEmail", () => {
-  it("returns null when no signature stored", () => {
-    expect(getSignatureForEmail("bob@test.com")).toBeNull();
-  });
+    await user.click(await screen.findByTestId("signature-toggle"));
+    await user.click(screen.getByTestId("signature-save-btn"));
 
-  it("returns null when signature is disabled", () => {
-    localStorage.setItem(
-      "signature:bob@test.com",
-      JSON.stringify({ enabled: false, content: "--\nBob" }),
-    );
-    expect(getSignatureForEmail("bob@test.com")).toBeNull();
+    await waitFor(() => {
+      expect(signatureApiMocks.deleteSignature).toHaveBeenCalledWith("alice@local.test");
+    });
   });
 
-  it("returns null when content is empty", () => {
-    localStorage.setItem(
-      "signature:bob@test.com",
-      JSON.stringify({ enabled: true, content: "" }),
-    );
-    expect(getSignatureForEmail("bob@test.com")).toBeNull();
-  });
-
-  it("returns signature when enabled with content", () => {
-    localStorage.setItem(
-      "signature:bob@test.com",
-      JSON.stringify({ enabled: true, content: "--\nBob" }),
-    );
-    const result = getSignatureForEmail("bob@test.com");
-    expect(result).toEqual({ enabled: true, content: "--\nBob" });
-  });
-});
-
-describe("ComposeDialog signature integration", () => {
-  it("getSignatureForEmail returns enabled signature for compose", () => {
-    localStorage.setItem(
-      "signature:test@local.test",
-      JSON.stringify({ enabled: true, content: "--\nTest Sig" }),
-    );
-    const sig = getSignatureForEmail("test@local.test");
-    expect(sig).not.toBeNull();
-    expect(sig?.enabled).toBe(true);
-    expect(sig?.content).toBe("--\nTest Sig");
-  });
-
-  it("does not append signature when disabled", () => {
-    localStorage.setItem(
-      "signature:test@local.test",
-      JSON.stringify({ enabled: false, content: "--\nTest Sig" }),
-    );
-    expect(getSignatureForEmail("test@local.test")).toBeNull();
+  it("renders save button with data-testid", async () => {
+    renderSignaturePage();
+    expect(await screen.findByTestId("signature-save-btn")).toBeInTheDocument();
   });
 });
 

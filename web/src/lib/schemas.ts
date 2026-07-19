@@ -39,6 +39,7 @@ export const userSchema = z.object({
   displayName: z.string().optional(),
   quota: z.number().int().min(0),
   active: z.boolean(),
+  mustChangePassword: z.boolean(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -171,8 +172,10 @@ export const loginRequestSchema = z.object({
 });
 
 export const loginResponseSchema = z.object({
-  token: z.string(),
-  expiresAt: z.string().datetime(),
+  status: z.string(),
+  email: z.string(),
+  role: z.string().optional(),
+  mustChangePassword: z.boolean(),
 });
 
 export const changePasswordRequestSchema = z.object({

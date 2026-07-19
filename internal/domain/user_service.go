@@ -99,10 +99,11 @@ func (s *UserService) Create(ctx context.Context, req CreateUserRequest) (*User,
 func (s *UserService) GetByID(ctx context.Context, id int64) (*User, error) {
 	var user User
 	err := s.db.Conn.QueryRowContext(ctx,
-		`SELECT id, email, password_hash, domain_id, display_name, quota, active, created_at, updated_at
+		`SELECT id, email, password_hash, domain_id, display_name, quota, active, must_change_password, created_at, updated_at
 		 FROM users WHERE id = ?`, id,
 	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.DomainID,
-		&user.DisplayName, &user.Quota, &user.Active, &user.CreatedAt, &user.UpdatedAt)
+		&user.DisplayName, &user.Quota, &user.Active, &user.MustChangePassword, &user.CreatedAt, &user.UpdatedAt)
+
 	if err == sql.ErrNoRows {
 		return nil, ErrUserNotFound
 	}
@@ -125,7 +126,7 @@ func (s *UserService) List(ctx context.Context, params UserListParams) ([]User, 
 	var args []interface{}
 
 	countQuery.WriteString("SELECT COUNT(*) FROM users")
-	listQuery.WriteString("SELECT users.id, users.email, users.password_hash, users.domain_id, users.display_name, users.quota, users.active, users.created_at, users.updated_at FROM users")
+	listQuery.WriteString("SELECT users.id, users.email, users.password_hash, users.domain_id, users.display_name, users.quota, users.active, users.must_change_password, users.created_at, users.updated_at FROM users")
 
 	if params.Domain != "" {
 		countQuery.WriteString(" JOIN domains ON users.domain_id = domains.id WHERE domains.name = ?")
@@ -153,7 +154,7 @@ func (s *UserService) List(ctx context.Context, params UserListParams) ([]User, 
 	for rows.Next() {
 		var user User
 		if err := rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.DomainID,
-			&user.DisplayName, &user.Quota, &user.Active, &user.CreatedAt, &user.UpdatedAt); err != nil {
+			&user.DisplayName, &user.Quota, &user.Active, &user.MustChangePassword, &user.CreatedAt, &user.UpdatedAt); err != nil {
 			return nil, 0, fmt.Errorf("scan user: %w", err)
 		}
 		users = append(users, user)
@@ -193,14 +194,16 @@ func (s *UserService) Update(ctx context.Context, id int64, req UpdateUserReques
 
 	var sets []string
 	var args []interface{}
+	var passwordHash string
 
 	if req.Password != nil && *req.Password != "" {
 		hash, err := bcrypt.GenerateFromPassword([]byte(*req.Password), 12)
 		if err != nil {
 			return nil, fmt.Errorf("hash password: %w", err)
 		}
-		sets = append(sets, "password_hash = ?")
-		args = append(args, string(hash))
+		passwordHash = string(hash)
+		sets = append(sets, "password_hash = ?", "must_change_password = 0")
+		args = append(args, passwordHash)
 	}
 
 	if req.DisplayName != nil {
@@ -211,6 +214,11 @@ func (s *UserService) Update(ctx context.Context, id int64, req UpdateUserReques
 	if req.Quota != nil {
 		sets = append(sets, "quota = ?")
 		args = append(args, *req.Quota)
+	}
+
+	if req.MustChangePassword != nil {
+		sets = append(sets, "must_change_password = ?")
+		args = append(args, *req.MustChangePassword)
 	}
 
 	if len(sets) == 0 {
@@ -230,14 +238,17 @@ func (s *UserService) Update(ctx context.Context, id int64, req UpdateUserReques
 
 	user.UpdatedAt = now
 	if req.Password != nil && *req.Password != "" {
-		hash, _ := bcrypt.GenerateFromPassword([]byte(*req.Password), 12)
-		user.PasswordHash = string(hash)
+		user.PasswordHash = passwordHash
+		user.MustChangePassword = false
 	}
 	if req.DisplayName != nil {
 		user.DisplayName = *req.DisplayName
 	}
 	if req.Quota != nil {
 		user.Quota = *req.Quota
+	}
+	if req.MustChangePassword != nil {
+		user.MustChangePassword = *req.MustChangePassword
 	}
 
 	return user, nil
@@ -247,10 +258,10 @@ func (s *UserService) Update(ctx context.Context, id int64, req UpdateUserReques
 func (s *UserService) GetByEmail(ctx context.Context, email string) (*User, error) {
 	var user User
 	err := s.db.Conn.QueryRowContext(ctx,
-		`SELECT id, email, password_hash, domain_id, display_name, quota, active, created_at, updated_at
+		`SELECT id, email, password_hash, domain_id, display_name, quota, active, must_change_password, created_at, updated_at
 		 FROM users WHERE email = ?`, email,
 	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.DomainID,
-		&user.DisplayName, &user.Quota, &user.Active, &user.CreatedAt, &user.UpdatedAt)
+		&user.DisplayName, &user.Quota, &user.Active, &user.MustChangePassword, &user.CreatedAt, &user.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, ErrUserNotFound
 	}

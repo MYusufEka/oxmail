@@ -30,6 +30,59 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Clear auth session cookie
+      responses:
+        "200":
+          description: Logout completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+
+  /api/auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [auth]
+      summary: Change user password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/domains:
     get:
       operationId: listDomains
@@ -467,6 +520,474 @@ paths:
               schema:
                 $ref: "#/components/schemas/MailMessageListResponse"
 
+  /api/mail/filters/{email}:
+    get:
+      operationId: getMailFilter
+      tags: [mail]
+      summary: Get Sieve filter script for a mailbox
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        "200":
+          description: Sieve filter script
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SieveFilterResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    post:
+      operationId: setMailFilter
+      tags: [mail]
+      summary: Save Sieve filter script for a mailbox
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SieveFilterRequest"
+      responses:
+        "200":
+          description: Sieve filter script saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SieveFilterResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    delete:
+      operationId: deleteMailFilter
+      tags: [mail]
+      summary: Delete Sieve filter script for a mailbox
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        "200":
+          description: Sieve filter script deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SieveFilterResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/mail/vacation/{email}:
+    get:
+      operationId: getVacationResponder
+      tags: [mail]
+      summary: Get vacation responder settings for a mailbox
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        "200":
+          description: Vacation responder settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VacationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    post:
+      operationId: setVacationResponder
+      tags: [mail]
+      summary: Save vacation responder settings for a mailbox
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VacationRequest"
+      responses:
+        "200":
+          description: Vacation responder settings saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VacationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    delete:
+      operationId: deleteVacationResponder
+      tags: [mail]
+      summary: Delete vacation responder settings for a mailbox
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        "200":
+          description: Vacation responder settings deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VacationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/mail/signature/{email}:
+    get:
+      operationId: getMailSignature
+      tags: [mail]
+      summary: Get webmail signature settings for a mailbox
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        "200":
+          description: Webmail signature settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Signature"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    post:
+      operationId: upsertMailSignature
+      tags: [mail]
+      summary: Save webmail signature settings for a mailbox
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignatureRequest"
+      responses:
+        "200":
+          description: Webmail signature settings saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Signature"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    delete:
+      operationId: deleteMailSignature
+      tags: [mail]
+      summary: Delete webmail signature settings for a mailbox
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        "204":
+          description: Webmail signature settings deleted
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/contacts/{userEmail}:
+    get:
+      operationId: listContacts
+      tags: [contacts]
+      summary: List contacts for a mailbox
+      parameters:
+        - name: userEmail
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        "200":
+          description: Contacts for mailbox
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Contact"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    post:
+      operationId: createContact
+      tags: [contacts]
+      summary: Create a contact for a mailbox
+      parameters:
+        - name: userEmail
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateContactRequest"
+      responses:
+        "201":
+          description: Contact created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/contacts/{userEmail}/{contactID}:
+    put:
+      operationId: updateContact
+      tags: [contacts]
+      summary: Update a contact
+      parameters:
+        - name: userEmail
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+        - name: contactID
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateContactRequest"
+      responses:
+        "200":
+          description: Contact updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteContact
+      tags: [contacts]
+      summary: Delete a contact
+      parameters:
+        - name: userEmail
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+        - name: contactID
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Contact deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/bounces:
+    get:
+      operationId: listBounces
+      tags: [bounces]
+      summary: List bounce records
+      parameters:
+        - name: recipient
+          in: query
+          schema:
+            type: string
+            format: email
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 0
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        "200":
+          description: Bounce records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BounceListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/bounces/{id}:
+    get:
+      operationId: getBounce
+      tags: [bounces]
+      summary: Get a bounce record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Bounce record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bounce"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteBounce
+      tags: [bounces]
+      summary: Delete a bounce record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Bounce record deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/stats:
+    get:
+      operationId: getStats
+      tags: [stats]
+      summary: Get daily mail statistics
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 7
+            minimum: 1
+      responses:
+        "200":
+          description: Daily mail statistics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DailyStat"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/stats/summary:
+    get:
+      operationId: getStatsSummary
+      tags: [stats]
+      summary: Get aggregate mail statistics
+      responses:
+        "200":
+          description: Aggregate mail statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatSummary"
+
+  /api/audit:
+    get:
+      operationId: listAuditEntries
+      tags: [audit]
+      summary: List audit log entries
+      parameters:
+        - name: actor
+          in: query
+          schema:
+            type: string
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        "200":
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditListResponse"
+
   /api/dns/records:
     get:
       operationId: getDNSRecords
@@ -605,7 +1126,7 @@ components:
 
     User:
       type: object
-      required: [id, email, domainId, quota, active, createdAt, updatedAt]
+      required: [id, email, domainId, quota, active, mustChangePassword, createdAt, updatedAt]
       properties:
         id:
           type: integer
@@ -622,6 +1143,8 @@ components:
           type: integer
           description: Mailbox quota in bytes
         active:
+          type: boolean
+        mustChangePassword:
           type: boolean
         createdAt:
           type: string
@@ -844,6 +1367,255 @@ components:
           type: string
           enum: [queued]
 
+    AuthSession:
+      type: object
+      required: [email, role, mustChangePassword]
+      properties:
+        email:
+          type: string
+        role:
+          type: string
+          enum: [admin, user]
+        mustChangePassword:
+          type: boolean
+
+    ChangePasswordRequest:
+      type: object
+      required: [email, currentPassword, newPassword]
+      properties:
+        email:
+          type: string
+          format: email
+        currentPassword:
+          type: string
+          minLength: 1
+        newPassword:
+          type: string
+          minLength: 8
+
+    StatusResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+
+    SieveFilterRequest:
+      type: object
+      required: [script]
+      properties:
+        script:
+          type: string
+          minLength: 1
+
+    SieveFilterResponse:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        script:
+          type: string
+        active:
+          type: boolean
+        status:
+          type: string
+
+    VacationRequest:
+      type: object
+      required: [subject, body, enabled]
+      properties:
+        subject:
+          type: string
+        body:
+          type: string
+        enabled:
+          type: boolean
+
+    VacationResponse:
+      type: object
+      required: [email, enabled]
+      properties:
+        email:
+          type: string
+          format: email
+        subject:
+          type: string
+        body:
+          type: string
+        enabled:
+          type: boolean
+        status:
+          type: string
+
+    Signature:
+      type: object
+      required: [email, content, enabled]
+      properties:
+        email:
+          type: string
+          format: email
+        content:
+          type: string
+        enabled:
+          type: boolean
+
+    SignatureRequest:
+      type: object
+      required: [content, enabled]
+      properties:
+        content:
+          type: string
+        enabled:
+          type: boolean
+
+    Contact:
+      type: object
+      required: [id, userEmail, name, email, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        userEmail:
+          type: string
+          format: email
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateContactRequest:
+      type: object
+      required: [name, email]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+
+    UpdateContactRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+
+    Bounce:
+      type: object
+      required: [id, recipient, sender, subject, bounceType, errorMessage, bouncedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        recipient:
+          type: string
+          format: email
+        sender:
+          type: string
+          format: email
+        subject:
+          type: string
+        bounceType:
+          type: string
+          enum: [hard, soft]
+        errorMessage:
+          type: string
+        bouncedAt:
+          type: string
+          format: date-time
+
+    BounceListResponse:
+      type: object
+      required: [bounces]
+      properties:
+        bounces:
+          type: array
+          items:
+            $ref: "#/components/schemas/Bounce"
+
+    DailyStat:
+      type: object
+      required: [date, sent, received, bounced, spamCaught]
+      properties:
+        date:
+          type: string
+          format: date
+        sent:
+          type: integer
+          format: int64
+        received:
+          type: integer
+          format: int64
+        bounced:
+          type: integer
+          format: int64
+        spamCaught:
+          type: integer
+          format: int64
+
+    StatSummary:
+      type: object
+      required: [totalSent, totalReceived, totalBounced, totalSpamCaught]
+      properties:
+        totalSent:
+          type: integer
+          format: int64
+        totalReceived:
+          type: integer
+          format: int64
+        totalBounced:
+          type: integer
+          format: int64
+        totalSpamCaught:
+          type: integer
+          format: int64
+
+    AuditEntry:
+      type: object
+      required: [id, actor, action, targetType, targetId, detail, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        actor:
+          type: string
+        action:
+          type: string
+        targetType:
+          type: string
+        targetId:
+          type: string
+        detail:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    AuditListResponse:
+      type: object
+      required: [entries, total]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEntry"
+        total:
+          type: integer
+
     DNSRecord:
       type: object
       required: [domain, type, name, value]
@@ -888,13 +1660,18 @@ components:
 
     LoginResponse:
       type: object
-      required: [token, expiresAt]
+      required: [status, email, mustChangePassword]
       properties:
-        token:
+        status:
           type: string
-        expiresAt:
+          enum: [ok]
+        email:
           type: string
-          format: date-time
+        role:
+          type: string
+          enum: [admin, user]
+        mustChangePassword:
+          type: boolean
 
   securitySchemes:
     bearerAuth:

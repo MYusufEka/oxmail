@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type auditListResponse struct {
+	Entries []domain.AuditEntry `json:"entries"`
+	Total   int                 `json:"total"`
+}
 
 func setupAuditTest(t *testing.T) (*api.AuditHandler, *domain.AuditService) {
 	t.Helper()
@@ -38,10 +44,7 @@ func TestAuditHandler_List(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rec.Code)
 
-		var resp struct {
-			Entries []domain.AuditEntry `json:"entries"`
-			Total   int                 `json:"total"`
-		}
+		var resp auditListResponse
 		err := json.NewDecoder(rec.Body).Decode(&resp)
 		require.NoError(t, err)
 		assert.Empty(t, resp.Entries)
@@ -50,9 +53,10 @@ func TestAuditHandler_List(t *testing.T) {
 
 	t.Run("returns entries with data", func(t *testing.T) {
 		h, svc := setupAuditTest(t)
-		err := svc.Log(context.Background(), "admin@test.com", "create", "domain", "1", `{"name":"test.com"}`)
+		ctx := context.Background()
+		err := svc.Log(ctx, "admin@test.com", "create", "domain", "domain-1", `{"name":"test.com"}`)
 		require.NoError(t, err)
-		err = svc.Log(context.Background(), "admin@test.com", "delete", "user", "2", `{"email":"u@t.com"}`)
+		err = svc.Log(ctx, "admin@test.com", "delete", "user", "user-2", `{"email":"u@t.com"}`)
 		require.NoError(t, err)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/audit", nil)
@@ -61,14 +65,16 @@ func TestAuditHandler_List(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rec.Code)
 
-		var resp struct {
-			Entries []domain.AuditEntry `json:"entries"`
-			Total   int                 `json:"total"`
-		}
+		var resp auditListResponse
 		err = json.NewDecoder(rec.Body).Decode(&resp)
 		require.NoError(t, err)
 		require.Len(t, resp.Entries, 2)
 		assert.Equal(t, 2, resp.Total)
+		assert.Equal(t, "admin@test.com", resp.Entries[0].Actor)
+		assert.Equal(t, "delete", resp.Entries[0].Action)
+		assert.Equal(t, "user", resp.Entries[0].TargetType)
+		assert.Equal(t, "user-2", resp.Entries[0].TargetID)
+		assert.JSONEq(t, `{"email":"u@t.com"}`, resp.Entries[0].Detail)
 	})
 
 	t.Run("filters by actor", func(t *testing.T) {
@@ -82,10 +88,7 @@ func TestAuditHandler_List(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rec.Code)
 
-		var resp struct {
-			Entries []domain.AuditEntry `json:"entries"`
-			Total   int                 `json:"total"`
-		}
+		var resp auditListResponse
 		err := json.NewDecoder(rec.Body).Decode(&resp)
 		require.NoError(t, err)
 		require.Len(t, resp.Entries, 1)
@@ -105,10 +108,7 @@ func TestAuditHandler_List(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rec.Code)
 
-		var resp struct {
-			Entries []domain.AuditEntry `json:"entries"`
-			Total   int                 `json:"total"`
-		}
+		var resp auditListResponse
 		err := json.NewDecoder(rec.Body).Decode(&resp)
 		require.NoError(t, err)
 		require.Len(t, resp.Entries, 2)
@@ -127,10 +127,7 @@ func TestAuditHandler_List(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rec.Code)
 
-		var resp struct {
-			Entries []domain.AuditEntry `json:"entries"`
-			Total   int                 `json:"total"`
-		}
+		var resp auditListResponse
 		err := json.NewDecoder(rec.Body).Decode(&resp)
 		require.NoError(t, err)
 		require.Len(t, resp.Entries, 1)
@@ -141,8 +138,10 @@ func TestAuditHandler_List(t *testing.T) {
 
 	t.Run("handles pagination", func(t *testing.T) {
 		h, svc := setupAuditTest(t)
-		for i := 0; i < 5; i++ {
-			svc.Log(context.Background(), "admin", "create", "domain", "1", `{}`)
+		ctx := context.Background()
+		for entryNumber := 0; entryNumber < 5; entryNumber++ {
+			err := svc.Log(ctx, "admin", "create", "domain", fmt.Sprintf("domain-%d", entryNumber), `{}`)
+			require.NoError(t, err)
 		}
 
 		req := httptest.NewRequest(http.MethodGet, "/api/audit?limit=2&offset=0", nil)
@@ -151,13 +150,57 @@ func TestAuditHandler_List(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rec.Code)
 
-		var resp struct {
-			Entries []domain.AuditEntry `json:"entries"`
-			Total   int                 `json:"total"`
-		}
+		var resp auditListResponse
 		err := json.NewDecoder(rec.Body).Decode(&resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Entries, 2)
 		assert.Equal(t, 5, resp.Total)
+	})
+
+	t.Run("paginates filtered action results", func(t *testing.T) {
+		h, svc := setupAuditTest(t)
+		ctx := context.Background()
+		for entryNumber := 0; entryNumber < 3; entryNumber++ {
+			err := svc.Log(ctx, "admin", "create", "domain", fmt.Sprintf("domain-%d", entryNumber), `{}`)
+			require.NoError(t, err)
+		}
+		err := svc.Log(ctx, "admin", "delete", "domain", "domain-3", `{}`)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/audit?action=create&limit=2&offset=1", nil)
+		rec := httptest.NewRecorder()
+		h.Router().ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var resp auditListResponse
+		err = json.NewDecoder(rec.Body).Decode(&resp)
+		require.NoError(t, err)
+		require.Len(t, resp.Entries, 2)
+		assert.Equal(t, 3, resp.Total)
+		for _, auditEntry := range resp.Entries {
+			assert.Equal(t, "create", auditEntry.Action)
+		}
+	})
+
+	t.Run("invalid pagination falls back to defaults", func(t *testing.T) {
+		h, svc := setupAuditTest(t)
+		ctx := context.Background()
+		for entryNumber := 0; entryNumber < 3; entryNumber++ {
+			err := svc.Log(ctx, "admin", "create", "domain", fmt.Sprintf("domain-%d", entryNumber), `{}`)
+			require.NoError(t, err)
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/api/audit?limit=-2&offset=-1", nil)
+		rec := httptest.NewRecorder()
+		h.Router().ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var resp auditListResponse
+		err := json.NewDecoder(rec.Body).Decode(&resp)
+		require.NoError(t, err)
+		assert.Len(t, resp.Entries, 3)
+		assert.Equal(t, 3, resp.Total)
 	})
 }

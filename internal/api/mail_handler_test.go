@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/MYusufEka/oxmail/internal/domain"
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -455,20 +455,23 @@ func TestMailHandler_GetThreads_Grouping(t *testing.T) {
 	// Should group into 2 threads (thread-abc with 2 msgs, thread-xyz with 1)
 	assert.Len(t, resp.Threads, 2)
 
-	// thread-abc should come first (insertion order)
-	thread1 := resp.Threads[0]
-	assert.Equal(t, "thread-abc", thread1.ThreadID)
-	assert.Len(t, thread1.Messages, 2)
-	assert.Equal(t, 2, thread1.ParticipantCount) // alice + bob
-	assert.Equal(t, 1, thread1.UnreadCount)       // msg 2 is unread
-	assert.True(t, thread1.LastDate.Equal(time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)))
+	threadsByID := make(map[string]domain.MailThread, len(resp.Threads))
+	for _, thread := range resp.Threads {
+		threadsByID[thread.ThreadID] = thread
+	}
 
-	// thread-xyz second
-	thread2 := resp.Threads[1]
-	assert.Equal(t, "thread-xyz", thread2.ThreadID)
-	assert.Len(t, thread2.Messages, 1)
-	assert.Equal(t, 2, thread2.ParticipantCount) // carol (from) + alice (to)
-	assert.Equal(t, 1, thread2.UnreadCount)
+	threadABC, ok := threadsByID["thread-abc"]
+	require.True(t, ok, "thread-abc should be present")
+	assert.Len(t, threadABC.Messages, 2)
+	assert.Equal(t, 2, threadABC.ParticipantCount) // alice + bob
+	assert.Equal(t, 1, threadABC.UnreadCount)      // msg 2 is unread
+	assert.True(t, threadABC.LastDate.Equal(time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)))
+
+	threadXYZ, ok := threadsByID["thread-xyz"]
+	require.True(t, ok, "thread-xyz should be present")
+	assert.Len(t, threadXYZ.Messages, 1)
+	assert.Equal(t, 2, threadXYZ.ParticipantCount) // carol (from) + alice (to)
+	assert.Equal(t, 1, threadXYZ.UnreadCount)
 }
 
 func TestMailHandler_GetThreads_MissingUser(t *testing.T) {

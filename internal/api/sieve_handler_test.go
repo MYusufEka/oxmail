@@ -8,9 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/MYusufEka/oxmail/internal/api"
 	"github.com/MYusufEka/oxmail/internal/mail"
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +18,7 @@ import (
 // mockCmdExecutor implements mail.CommandExecutor for testing sieve operations.
 type mockCmdExecutor struct {
 	mail.CommandExecutor
-	onRun          func(name string, args ...string) error
+	onRun           func(name string, args ...string) error
 	onRunWithOutput func(name string, args ...string) (string, error)
 }
 
@@ -185,11 +185,11 @@ func TestSieveHandler_SetFilter(t *testing.T) {
 
 func TestSieveHandler_DeleteFilter(t *testing.T) {
 	t.Run("deletes script successfully", func(t *testing.T) {
-		var ran bool
+		removedPaths := make([]string, 0, 2)
 		exec := &mockCmdExecutor{
 			onRun: func(name string, args ...string) error {
 				if name == "rm" {
-					ran = true
+					removedPaths = append(removedPaths, args[len(args)-1])
 				}
 				return nil
 			},
@@ -201,7 +201,10 @@ func TestSieveHandler_DeleteFilter(t *testing.T) {
 		router.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.True(t, ran)
+		assert.ElementsMatch(t, []string{
+			"/tmp/sieve/example.com/test.sieve",
+			"/tmp/sieve/example.com/test.sieve.svbin",
+		}, removedPaths)
 
 		var resp struct {
 			Email  string `json:"email"`
@@ -211,6 +214,49 @@ func TestSieveHandler_DeleteFilter(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "test@example.com", resp.Email)
 		assert.Equal(t, "deleted", resp.Status)
+	})
+
+	t.Run("decodes URL-encoded email path", func(t *testing.T) {
+		removedPaths := make([]string, 0, 2)
+		exec := &mockCmdExecutor{
+			onRun: func(name string, args ...string) error {
+				if name == "rm" {
+					removedPaths = append(removedPaths, args[len(args)-1])
+				}
+				return nil
+			},
+		}
+		_, router := setupSieveHandler(t, exec)
+
+		req := httptest.NewRequest(http.MethodDelete, "/api/mail/filters/user%2Btag@example.com", nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.ElementsMatch(t, []string{
+			"/tmp/sieve/example.com/user+tag.sieve",
+			"/tmp/sieve/example.com/user+tag.sieve.svbin",
+		}, removedPaths)
+
+		var resp struct {
+			Email  string `json:"email"`
+			Status string `json:"status"`
+		}
+		err := json.NewDecoder(rec.Body).Decode(&resp)
+		require.NoError(t, err)
+		assert.Equal(t, "user+tag@example.com", resp.Email)
+		assert.Equal(t, "deleted", resp.Status)
+	})
+
+	t.Run("returns 404 for missing email segment", func(t *testing.T) {
+		exec := &mockCmdExecutor{}
+		_, router := setupSieveHandler(t, exec)
+
+		req := httptest.NewRequest(http.MethodDelete, "/api/mail/filters/", nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
 	})
 }
 
@@ -247,6 +293,28 @@ func TestSieveHandler_GetVacation(t *testing.T) {
 		assert.True(t, resp.Enabled)
 	})
 
+	t.Run("returns 500 when existing vacation read fails", func(t *testing.T) {
+		exec := &mockCmdExecutor{
+			onRun: func(name string, args ...string) error {
+				if name == "test" {
+					return nil
+				}
+				return nil
+			},
+			onRunWithOutput: func(name string, args ...string) (string, error) {
+				return "", fmt.Errorf("read failed")
+			},
+		}
+		_, router := setupSieveHandler(t, exec)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/mail/vacation/user@example.com", nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Contains(t, rec.Body.String(), "internal_error")
+	})
+
 	t.Run("returns disabled when no vacation exists", func(t *testing.T) {
 		exec := &mockCmdExecutor{
 			onRun: func(name string, args ...string) error {
@@ -276,7 +344,13 @@ func TestSieveHandler_GetVacation(t *testing.T) {
 
 func TestSieveHandler_SetVacation(t *testing.T) {
 	t.Run("enables vacation", func(t *testing.T) {
-		exec := &mockCmdExecutor{}
+		commands := make([]string, 0, 3)
+		exec := &mockCmdExecutor{
+			onRun: func(name string, args ...string) error {
+				commands = append(commands, name)
+				return nil
+			},
+		}
 		_, router := setupSieveHandler(t, exec)
 
 		body := `{"subject":"Out of Office","body":"I am away","enabled":true}`
@@ -286,6 +360,7 @@ func TestSieveHandler_SetVacation(t *testing.T) {
 		router.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, []string{"mkdir", "sh", "sievec"}, commands)
 
 		var resp struct {
 			Email   string `json:"email"`
@@ -296,6 +371,27 @@ func TestSieveHandler_SetVacation(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, resp.Enabled)
 		assert.Equal(t, "enabled", resp.Status)
+	})
+
+	t.Run("returns 500 when compile fails", func(t *testing.T) {
+		exec := &mockCmdExecutor{
+			onRun: func(name string, args ...string) error {
+				if name == "sievec" {
+					return fmt.Errorf("compile failed")
+				}
+				return nil
+			},
+		}
+		_, router := setupSieveHandler(t, exec)
+
+		body := `{"subject":"Out of Office","body":"I am away","enabled":true}`
+		req := httptest.NewRequest(http.MethodPost, "/api/mail/vacation/user@example.com", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Contains(t, rec.Body.String(), "internal_error")
 	})
 
 	t.Run("disables vacation", func(t *testing.T) {
@@ -349,11 +445,11 @@ func TestSieveHandler_SetVacation(t *testing.T) {
 
 func TestSieveHandler_DeleteVacation(t *testing.T) {
 	t.Run("deletes vacation successfully", func(t *testing.T) {
-		var ran bool
+		removedPaths := make([]string, 0, 2)
 		exec := &mockCmdExecutor{
 			onRun: func(name string, args ...string) error {
 				if name == "rm" {
-					ran = true
+					removedPaths = append(removedPaths, args[len(args)-1])
 				}
 				return nil
 			},
@@ -365,7 +461,10 @@ func TestSieveHandler_DeleteVacation(t *testing.T) {
 		router.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.True(t, ran)
+		assert.ElementsMatch(t, []string{
+			"/tmp/sieve/example.com/user.vacation.sieve",
+			"/tmp/sieve/example.com/user.vacation.sieve.svbin",
+		}, removedPaths)
 
 		var resp struct {
 			Email   string `json:"email"`
@@ -377,6 +476,51 @@ func TestSieveHandler_DeleteVacation(t *testing.T) {
 		assert.Equal(t, "user@example.com", resp.Email)
 		assert.False(t, resp.Enabled)
 		assert.Equal(t, "deleted", resp.Status)
+	})
+
+	t.Run("decodes URL-encoded email path", func(t *testing.T) {
+		removedPaths := make([]string, 0, 2)
+		exec := &mockCmdExecutor{
+			onRun: func(name string, args ...string) error {
+				if name == "rm" {
+					removedPaths = append(removedPaths, args[len(args)-1])
+				}
+				return nil
+			},
+		}
+		_, router := setupSieveHandler(t, exec)
+
+		req := httptest.NewRequest(http.MethodDelete, "/api/mail/vacation/user%2Btag@example.com", nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.ElementsMatch(t, []string{
+			"/tmp/sieve/example.com/user+tag.vacation.sieve",
+			"/tmp/sieve/example.com/user+tag.vacation.sieve.svbin",
+		}, removedPaths)
+
+		var resp struct {
+			Email   string `json:"email"`
+			Enabled bool   `json:"enabled"`
+			Status  string `json:"status"`
+		}
+		err := json.NewDecoder(rec.Body).Decode(&resp)
+		require.NoError(t, err)
+		assert.Equal(t, "user+tag@example.com", resp.Email)
+		assert.False(t, resp.Enabled)
+		assert.Equal(t, "deleted", resp.Status)
+	})
+
+	t.Run("returns 404 for missing email segment", func(t *testing.T) {
+		exec := &mockCmdExecutor{}
+		_, router := setupSieveHandler(t, exec)
+
+		req := httptest.NewRequest(http.MethodDelete, "/api/mail/vacation/", nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
 	})
 }
 

@@ -41,14 +41,14 @@ RESPONSE=$(api_post "/api/mail/send?auth_user=alice@${DOMAIN}" \
   "{\"from\":\"alice@${DOMAIN}\",\"to\":[\"someone@external.org\"],\"subject\":\"Relay attempt\",\"bodyText\":\"Should be blocked in dev mode.\"}")
 STATUS=$(extract_status "$RESPONSE")
 
-# In dev mode, external delivery should be blocked or queued (not silently sent)
+# External delivery must be blocked/rejected; HTTP 200 means possible relay acceptance.
 TESTS_TOTAL=$((TESTS_TOTAL + 1))
-if [ "$STATUS" -ge 400 ] || [ "$STATUS" = "200" ]; then
+if [ "$STATUS" -ge 400 ]; then
   TESTS_PASSED=$((TESTS_PASSED + 1))
-  print_pass "External delivery handled (HTTP $STATUS)"
+  print_pass "External relay blocked/rejected (HTTP $STATUS)"
 else
   TESTS_FAILED=$((TESTS_FAILED + 1))
-  print_fail "Unexpected response for external delivery (HTTP $STATUS)"
+  print_fail "External relay accepted/possible relay (HTTP $STATUS — expected 4xx/5xx)"
 fi
 
 # ---------------------------------------------------------------------------

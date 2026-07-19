@@ -25,9 +25,11 @@ func TestSecurityHeadersApplied(t *testing.T) {
 	assert.Equal(t, "default-src 'self'", rec.Header().Get("Content-Security-Policy"))
 	assert.Equal(t, "0", rec.Header().Get("X-XSS-Protection"))
 	assert.Equal(t, "http://localhost:3000", rec.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "true", rec.Header().Get("Access-Control-Allow-Credentials"))
+	assert.Contains(t, rec.Header().Values("Vary"), "Origin")
 }
 
-func TestSecurityHeadersCORSWildcardInDev(t *testing.T) {
+func TestSecurityHeadersCORSWildcardFallsBackToLocalOrigin(t *testing.T) {
 	router := chi.NewRouter()
 	router.Use(SecurityHeaders("*"))
 	router.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +40,8 @@ func TestSecurityHeadersCORSWildcardInDev(t *testing.T) {
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
-	assert.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "http://localhost:3000", rec.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "true", rec.Header().Get("Access-Control-Allow-Credentials"))
 }
 
 func TestSecurityHeadersCORSPreflight(t *testing.T) {
@@ -56,6 +59,7 @@ func TestSecurityHeadersCORSPreflight(t *testing.T) {
 
 	assert.Equal(t, http.StatusNoContent, rec.Code)
 	assert.Equal(t, "http://localhost:3000", rec.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "true", rec.Header().Get("Access-Control-Allow-Credentials"))
 	assert.Contains(t, rec.Header().Get("Access-Control-Allow-Methods"), "POST")
 	assert.Contains(t, rec.Header().Get("Access-Control-Allow-Headers"), "Authorization")
 }

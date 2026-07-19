@@ -115,6 +115,18 @@ describe("useDnsCheck", () => {
     expect(result.current.data?.results).toEqual(mockCheckResults);
   });
 
+  it("fetches automatically when enabled", async () => {
+    mockGetDnsCheck.mockResolvedValue({ results: mockCheckResults });
+
+    const { result } = renderHook(() => useDnsCheck({ enabled: true }), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockGetDnsCheck).toHaveBeenCalledTimes(1);
+    expect(result.current.data?.results).toEqual(mockCheckResults);
+  });
+
   it("handles DNS check error", async () => {
     mockGetDnsCheck.mockRejectedValue(new Error("Check failed"));
 

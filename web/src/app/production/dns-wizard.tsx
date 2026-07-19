@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
+import { useDnsCheck } from "@/hooks/use-dns";
 import { DnsRecordStep } from "./dns-record-step";
 import type { DNSCheckResult } from "@/types/api";
 
@@ -68,7 +67,7 @@ function getDnsSteps(domain: string): DnsStepConfig[] {
 }
 
 export function DnsWizard({ domain }: { domain: string }) {
-  const queryClient = useQueryClient();
+  const dnsCheck = useDnsCheck();
   const [verificationState, setVerificationState] = useState<
     Record<string, boolean | null>
   >({
@@ -93,8 +92,8 @@ export function DnsWizard({ domain }: { domain: string }) {
     async (recordKey: string) => {
       setVerifyingStep(recordKey);
       try {
-        const response = await apiClient.getDnsCheck();
-        const results = response.results;
+        const response = await dnsCheck.refetch({ throwOnError: true });
+        const results = response.data?.results ?? [];
 
         const newState: Record<string, boolean | null> = { ...verificationState };
         for (const result of results) {
@@ -107,14 +106,13 @@ export function DnsWizard({ domain }: { domain: string }) {
         }
 
         setVerificationState(newState);
-        queryClient.invalidateQueries({ queryKey: ["dns", "check"] });
       } catch {
         setVerificationState((prev) => ({ ...prev, [recordKey]: false }));
       } finally {
         setVerifyingStep(null);
       }
     },
-    [verificationState, queryClient]
+    [verificationState, dnsCheck]
   );
 
   return (

@@ -13,8 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	authmw "github.com/MYusufEka/oxmail/internal/api/middleware"
 	"github.com/MYusufEka/oxmail/internal/config"
 	"github.com/MYusufEka/oxmail/internal/database"
@@ -22,6 +20,8 @@ import (
 	"github.com/MYusufEka/oxmail/internal/health"
 	"github.com/MYusufEka/oxmail/internal/logs"
 	"github.com/MYusufEka/oxmail/internal/mail"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 // Server holds the HTTP server and router.
@@ -45,8 +45,8 @@ func NewServer(conn ...*sql.DB) *Server {
 
 	// Security headers + CORS
 	allowOrigin := os.Getenv("OXMAIL_WEB_URL")
-	if allowOrigin == "" || IsDevMode() {
-		allowOrigin = "*"
+	if allowOrigin == "" {
+		allowOrigin = "http://localhost:3000"
 	}
 	router.Use(authmw.SecurityHeaders(allowOrigin))
 
@@ -150,6 +150,8 @@ func (s *Server) registerRoutes(conn *sql.DB, jwtSecret, adminPassword string) {
 			r.Use(authmw.JWTAuth(jwtSecret))
 		}
 
+		authHandler.RegisterProtectedRoutes(r)
+
 		if conn != nil {
 			aliasSvc := domain.NewAliasService(conn)
 			aliasHandler := NewAliasHandler(aliasSvc, postfixMgr)
@@ -167,6 +169,10 @@ func (s *Server) registerRoutes(conn *sql.DB, jwtSecret, adminPassword string) {
 			contactSvc := domain.NewContactService(conn)
 			contactsHandler := NewContactsHandler(contactSvc)
 			contactsHandler.RegisterRoutes(r)
+
+			signatureSvc := domain.NewSignatureService(conn)
+			signatureHandler := NewSignatureHandler(signatureSvc)
+			signatureHandler.RegisterRoutes(r)
 
 			bounceSvc := domain.NewBounceService(conn)
 			bouncesHandler := NewBouncesHandler(bounceSvc)

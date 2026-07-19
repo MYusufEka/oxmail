@@ -4,10 +4,11 @@ import { useEffect, useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
+import UnderlineExtension from "@tiptap/extension-underline";
 import {
   Bold,
   Italic,
-  Underline,
+  Underline as UnderlineIcon,
   Link,
   List,
   ListOrdered,
@@ -32,6 +33,7 @@ function ToolbarButton({ isActive, onClick, icon: Icon, label }: ToolbarButtonPr
   return (
     <button
       type="button"
+      onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
       className={cn(
         "rounded-sm p-1.5 transition-colors",
@@ -59,7 +61,9 @@ export function RichEditor({
     extensions: [
       StarterKit.configure({
         link: { openOnClick: false },
+        underline: false,
       }),
+      UnderlineExtension,
       Placeholder.configure({ placeholder }),
     ],
     content: value,
@@ -114,7 +118,7 @@ export function RichEditor({
         <ToolbarButton
           isActive={editor.isActive("underline")}
           onClick={() => editor.chain().focus().toggleUnderline().run()}
-          icon={Underline}
+          icon={UnderlineIcon}
           label="Underline"
         />
         <ToolbarButton
